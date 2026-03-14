@@ -44,8 +44,10 @@ class PopupController: BaseTerminalController {
 
         // Build an optional base surface configuration (e.g. custom command).
         var baseConfig = Ghostty.SurfaceConfiguration()
-        baseConfig.environmentVariables["GHOSTTY_POPUP_TERMINAL"] = "1"
-        baseConfig.environmentVariables["GHOSTTY_POPUP_PROFILE"] = name
+        baseConfig.environmentVariables["GHOSTTY_POPUP"] = name
+        if name == "quick" {
+            baseConfig.environmentVariables["GHOSTTY_QUICK_TERMINAL"] = "1"
+        }
         if let cmd = config.command, !cmd.isEmpty {
             baseConfig.command = cmd
         }
@@ -104,8 +106,10 @@ class PopupController: BaseTerminalController {
         // Lazily create the terminal surface on first show.
         if surfaceTree.isEmpty, let app = ghostty.app {
             var config = Ghostty.SurfaceConfiguration()
-            config.environmentVariables["GHOSTTY_POPUP_TERMINAL"] = "1"
-            config.environmentVariables["GHOSTTY_POPUP_PROFILE"] = profileName
+            config.environmentVariables["GHOSTTY_POPUP"] = profileName
+            if profileName == "quick" {
+                config.environmentVariables["GHOSTTY_QUICK_TERMINAL"] = "1"
+            }
             if let cmd = profileConfig.command, !cmd.isEmpty {
                 config.command = cmd
             }
