@@ -1,0 +1,48 @@
+import Cocoa
+
+/// Floating NSPanel for popup terminals.
+/// Created programmatically — no XIB needed.
+class PopupWindow: NSPanel {
+    let profileName: String
+
+    /// True when this popup corresponds to the built-in "quick" profile.
+    var isQuickProfile: Bool { profileName == "quick" }
+
+    init(profileName: String, contentRect: NSRect) {
+        self.profileName = profileName
+        super.init(
+            contentRect: contentRect,
+            styleMask: [.titled, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+
+        // Remove the title bar so the window is a plain rectangle, then add
+        // nonactivatingPanel so showing the popup doesn't steal the "active
+        // application" status (same approach as QuickTerminalWindow).
+        styleMask.remove(.titled)
+        styleMask.insert(.nonactivatingPanel)
+
+        // Accessibility: give the window a unique identifier and the correct
+        // floating-window subrole so tools like AeroSpace can handle it.
+        identifier = NSUserInterfaceItemIdentifier(
+            "com.mitchellh.ghostty.popup.\(profileName)"
+        )
+        setAccessibilitySubrole(.floatingWindow)
+
+        // Panel behavior: float above normal windows, stay visible when the
+        // app deactivates, and allow dragging by the background.
+        isFloatingPanel = true
+        hidesOnDeactivate = false
+        isMovableByWindowBackground = true
+        level = .floating
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    // Both overrides are required so a panel without a title bar can still
+    // receive keyboard events and act as the key/main window.
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
