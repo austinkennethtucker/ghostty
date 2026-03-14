@@ -323,10 +323,10 @@ pub const RepeatablePopup = struct {
 
     pub fn equal(a: Self, b: Self) bool {
         if (a.names.items.len != b.names.items.len) return false;
-        for (a.names.items, a.profiles.items, 0..) |name, prof_a, i| {
-            _ = name;
-            const prof_b = b.profiles.items[i];
-            if (!std.meta.eql(prof_a, prof_b)) return false;
+        for (a.names.items, a.profiles.items, 0..) |name_a, prof_a, i| {
+            const name_b = b.names.items[i];
+            if (!std.mem.eql(u8, name_a, name_b)) return false;
+            if (!std.meta.eql(prof_a, b.profiles.items[i])) return false;
         }
         return true;
     }
@@ -349,8 +349,8 @@ test "RepeatablePopup: basic parsing" {
     var popup: RepeatablePopup = .{};
     try popup.parseCLI(alloc, "quick:position:top,width:100%,height:50%");
 
-    try std.testing.expectEqual(@as(usize, 1), popup.value.count());
-    const profile = popup.value.get("quick").?;
+    try std.testing.expectEqual(@as(usize, 1), popup.names.items.len);
+    const profile = popup.get("quick").?;
     try std.testing.expectEqual(popupmod.Position.top, profile.position);
     try std.testing.expectEqual(@as(u32, 100), profile.width.value);
     try std.testing.expectEqual(popupmod.Dimension.Unit.percent, profile.width.unit);
@@ -365,7 +365,7 @@ test "RepeatablePopup: duplicate name last wins" {
     try popup.parseCLI(alloc, "quick:position:top");
     try popup.parseCLI(alloc, "quick:position:center");
 
-    const profile = popup.value.get("quick").?;
+    const profile = popup.get("quick").?;
     try std.testing.expectEqual(popupmod.Position.center, profile.position);
 }
 
@@ -399,10 +399,10 @@ test "RepeatablePopup: clear on empty" {
 
     var popup: RepeatablePopup = .{};
     try popup.parseCLI(alloc, "quick:position:top");
-    try std.testing.expectEqual(@as(usize, 1), popup.value.count());
+    try std.testing.expectEqual(@as(usize, 1), popup.names.items.len);
 
     try popup.parseCLI(alloc, "");
-    try std.testing.expectEqual(@as(usize, 0), popup.value.count());
+    try std.testing.expectEqual(@as(usize, 0), popup.names.items.len);
 }
 ```
 
@@ -712,7 +712,7 @@ In `Config.zig`, add a method on the `Config` struct:
 /// Called during config finalization, after all fields are parsed.
 pub fn migrateQuickTerminalToPopup(self: *Config, alloc: Allocator) !void {
     // If a "quick" popup already exists, legacy keys are ignored
-    if (self.popup.value.get("quick") != null) return;
+    if (self.popup.get("quick") != null) return;
 
     // Check if any quick-terminal key was explicitly set
     // (compare against default values to detect user modifications)
@@ -742,7 +742,9 @@ pub fn migrateQuickTerminalToPopup(self: *Config, alloc: Allocator) !void {
     // ... (implementation details follow existing QuickTerminalSize logic)
 
     const name = try alloc.dupe(u8, "quick");
-    try self.popup.value.put(alloc, name, profile);
+    const name = try alloc.dupeZ(u8, "quick");
+    try self.popup.names.append(alloc, name);
+    try self.popup.profiles.append(alloc, profile);
 }
 ```
 
@@ -781,7 +783,7 @@ git commit -m "feat: migrate quick-terminal-* config keys to popup profile"
 
 ---
 
-### Task 7: Implement keybind synthesis post-processing
+### Task 8: Implement keybind synthesis post-processing
 
 **Files:**
 - Modify: `src/config/Config.zig` (add keybind synthesis function)
@@ -797,10 +799,7 @@ git commit -m "feat: migrate quick-terminal-* config keys to popup profile"
 /// Only binds triggers that are not already claimed by explicit keybind = ... lines.
 /// Called after migrateQuickTerminalToPopup.
 pub fn synthesizePopupKeybinds(self: *Config, alloc: Allocator) !void {
-    var it = self.popup.value.iterator();
-    while (it.next()) |entry| {
-        const name = entry.key_ptr.*;
-        const profile = entry.value_ptr.*;
+    for (self.popup.names.items, self.popup.profiles.items) |name, profile| {
         const keybind_str = profile.keybind orelse continue;
 
         // Parse the trigger from the keybind string
@@ -863,7 +862,7 @@ git commit -m "feat: synthesize popup keybinds in config post-processing"
 
 ## Chunk 4: GTK PopupManager & Window Integration
 
-### Task 8: Add is_popup property to GTK Window
+### Task 9: Add is_popup property to GTK Window
 
 **Files:**
 - Modify: `src/apprt/gtk/class/window.zig` (add `is-popup` property, keep `quick-terminal` as alias)
@@ -942,7 +941,7 @@ git commit -m "feat: add is-popup GTK window property, keep quick-terminal as al
 
 ---
 
-### Task 9: Create GTK PopupManager
+### Task 10: Create GTK PopupManager
 
 **Files:**
 - Create: `src/apprt/gtk/PopupManager.zig`
@@ -1106,7 +1105,7 @@ git commit -m "feat: create GTK PopupManager with toggle/show/hide state machine
 
 ---
 
-### Task 10: Wire PopupManager into GTK Application
+### Task 11: Wire PopupManager into GTK Application
 
 **Files:**
 - Modify: `src/apprt/gtk/class/application.zig` (add PopupManager field, performAction dispatch, replace toggleQuickTerminal)
@@ -1126,7 +1125,7 @@ popup_manager: ?PopupManager = null,
 
 In the `activate` or `startup` handler, after config is loaded:
 ```zig
-priv.popup_manager = try PopupManager.init(alloc, self, config.popup.value);
+priv.popup_manager = try PopupManager.init(alloc, self, &config.popup);
 ```
 
 - [ ] **Step 3: Add performAction dispatch cases**
@@ -1167,7 +1166,7 @@ git commit -m "feat: wire PopupManager into GTK Application dispatch"
 
 ---
 
-### Task 11: Update GTK winproto for popup support
+### Task 12: Update GTK winproto for popup support
 
 **Files:**
 - Modify: `src/apprt/gtk/winproto/wayland.zig` (generalize `syncQuickTerminal` → `syncPopup`)
@@ -1243,7 +1242,7 @@ git commit -m "feat: generalize GTK winproto from quick-terminal to popup"
 
 ---
 
-### Task 12: Update GTK surface environment variable
+### Task 13: Update GTK surface environment variable
 
 **Files:**
 - Modify: `src/apprt/gtk/class/surface.zig` (around line 1606)
@@ -1281,7 +1280,7 @@ git commit -m "feat: set GHOSTTY_POPUP env var for popup surfaces"
 
 ## Chunk 5: macOS Popup System
 
-### Task 13: Create PopupWindow.swift
+### Task 14: Create PopupWindow.swift
 
 **Files:**
 - Create: `macos/Sources/Features/Popup/PopupWindow.swift`
@@ -1358,7 +1357,7 @@ git commit -m "feat: add PopupWindow NSPanel subclass"
 
 ---
 
-### Task 14: Create PopupController.swift
+### Task 15: Create PopupController.swift
 
 **Files:**
 - Create: `macos/Sources/Features/Popup/PopupController.swift`
@@ -1397,7 +1396,7 @@ git commit -m "feat: add PopupController evolved from QuickTerminalController"
 
 ---
 
-### Task 15: Create macOS PopupManager.swift
+### Task 16: Create macOS PopupManager.swift
 
 **Files:**
 - Create: `macos/Sources/Features/Popup/PopupManager.swift`
@@ -1473,7 +1472,7 @@ git commit -m "feat: add macOS PopupManager registry"
 
 ## Chunk 6: macOS Integration
 
-### Task 16: Update AppDelegate to use PopupManager
+### Task 17: Update AppDelegate to use PopupManager
 
 **Files:**
 - Modify: `macos/Sources/App/macOS/AppDelegate.swift`
@@ -1524,7 +1523,7 @@ git commit -m "feat: replace quickController with PopupManager in AppDelegate"
 
 ---
 
-### Task 17: Update Ghostty.App.swift action dispatch
+### Task 18: Update Ghostty.App.swift action dispatch
 
 **Files:**
 - Modify: `macos/Sources/Ghostty/Ghostty.App.swift` (performAction dispatch)
@@ -1573,7 +1572,7 @@ git commit -m "feat: handle popup actions in macOS Ghostty.App dispatch"
 
 ---
 
-### Task 18: Update macOS integration points
+### Task 19: Update macOS integration points
 
 **Files:**
 - Modify: `macos/Sources/Features/Update/UpdateDriver.swift` (~line 208)
@@ -1618,7 +1617,7 @@ func perform() async throws -> some IntentResult & ReturnsValue<[TerminalEntity]
 
 The Quick Terminal menu item currently sends `toggleQuickTerminal:` action. Update it to route through PopupManager. Either:
 - Change the menu action to call `popupManager.toggle("quick")` on AppDelegate, or
-- Keep the existing action selector but have the AppDelegate handler delegate to PopupManager (this may already be done in Task 16)
+- Keep the existing action selector but have the AppDelegate handler delegate to PopupManager (this may already be done in Task 17)
 
 Verify by opening the XIB in Xcode's Interface Builder or editing the XML directly.
 
@@ -1652,7 +1651,7 @@ git commit -m "feat: update macOS integration points for popup system"
 
 ---
 
-### Task 19: Add C API for popup profile access and update Ghostty.Config.swift
+### Task 20: Add C API for popup profile access and update Ghostty.Config.swift
 
 **Files:**
 - Modify: `macos/Sources/Ghostty/Ghostty.Config.swift`
@@ -1744,7 +1743,7 @@ git commit -m "feat: add C API for popup profile access, wire to Swift Config"
 
 ## Chunk 7: Cleanup & Final Integration
 
-### Task 20: Remove old QuickTerminal files
+### Task 21: Remove old QuickTerminal files
 
 **Files:**
 - Remove: `macos/Sources/Features/QuickTerminal/QuickTerminalWindow.swift`
@@ -1789,7 +1788,7 @@ git commit -m "refactor: remove old QuickTerminal files, move supporting files t
 
 ---
 
-### Task 21: Full build and manual smoke test
+### Task 22: Full build and manual smoke test
 
 - [ ] **Step 1: Full Zig build**
 
@@ -1868,9 +1867,9 @@ This plan revision addressed the following issues from plan review:
 6. **RepeatablePopup.equal** — Now uses `std.meta.eql` for field comparison
 7. **NSPanel styleMask** — Fixed to match QuickTerminalWindow's actual pattern (remove .titled, insert .nonactivatingPanel)
 8. **NSWindowController NIB** — Added note about programmatic init via `super.init(window:)`
-9. **Process exit handling** — Added to Task 18 (surfaceTreeDidChange)
-10. **MainMenu.xib** — Added to Task 18
+9. **Process exit handling** — Added to Task 19 (surfaceTreeDidChange)
+10. **MainMenu.xib** — Added to Task 19
 11. **Wayland warnings** — Added to Task 12 (log warning for x/y/anchor on Wayland)
-12. **C API for config** — Task 19 rewritten with concrete ghostty_config_popup_* API design
+12. **C API for config** — Task 20 rewritten with concrete ghostty_config_popup_* API design
 13. **Quoted value test** — Added to Task 2 tests
 14. **Missing files in summary** — Added App.zig, surface.zig, MainMenu.xib to modified files table
