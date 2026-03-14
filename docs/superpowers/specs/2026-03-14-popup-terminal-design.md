@@ -103,13 +103,15 @@ popup = monitor:position:right,width:30%,height:100%,keybind:ctrl+alt+m,autohide
 
 ### Keybind Precedence
 
-At config load time, after all `popup = ...` lines are parsed, synthetic keybind entries are generated for each profile that has a `keybind:` property. These synthetic entries are **prepended** to the keybind set before processing user-defined `keybind = ...` lines.
+**Rule:** Explicit `keybind = ...` lines always win over popup-generated bindings. Among popup profiles, the last `popup = ...` definition wins for a given trigger.
 
-Concretely, in `Config.zig` after the full config is loaded (all fields parsed), a post-processing step iterates popup profiles and inserts `toggle_popup:<name>` bindings into the keybind set. Since Ghostty processes keybinds in order and later entries override earlier ones:
+**Implementation:** A single post-processing step in `Config.zig` runs after the full config is loaded (all fields parsed, including all `keybind = ...` and `popup = ...` lines). This step iterates popup profiles in order and, for each profile with a `keybind:` property:
 
-- Explicit `keybind = ...` lines always win (they come after popup-generated bindings)
-- Two popups with the same keybind: the last popup definition wins
-- No warning/error for conflicts — consistent with existing keybind behavior
+1. Check if the trigger is already bound in the keybind set (i.e., a user-defined `keybind = ...` line already claimed it)
+2. If **unbound**: insert `toggle_popup:<name>` for that trigger
+3. If **already bound**: skip — the explicit keybind wins, no warning emitted
+
+For duplicate popup keybinds (two profiles claim the same trigger and neither has an explicit `keybind = ...` override): the **last popup definition** wins, because the post-processing iterates in order and overwrites. No warning emitted — consistent with Ghostty's existing "last wins" convention for keybinds.
 
 ### Error Handling
 
@@ -214,7 +216,7 @@ pub const TogglePopup = struct {
 };
 ```
 
-**String lifetime:** The `name` pointer in the C struct points into the config-owned `PopupProfile.name` slice, which lives for the duration of the app (config is not freed until shutdown). For `toggle_quick_terminal`, the name `"quick"` is a comptime string literal. No additional allocation or lifetime management is needed.
+**String lifetime:** PopupManager owns copies of all profile names (allocated on init, freed on deinit). The `name` pointer in the C struct points into PopupManager-owned memory, not directly into the config — this is important because Ghostty can replace config objects on reload. For `toggle_quick_terminal`, the name `"quick"` is a comptime string literal. Action payload strings are stable for the lifetime of the PopupManager (which lives for the app's lifetime).
 
 ## Platform Implementation
 
@@ -257,7 +259,7 @@ pub const TogglePopup = struct {
 - `position=center` → no anchors (compositor-dependent centering, not guaranteed)
 - `width`/`height` → respected via layer-shell size requests
 - `x`/`y`/`anchor` → **ignored with log warning** on Wayland
-- **No `wlr-layer-shell` available:** Popups fall back to normal GTK windows with requested size but no positioning or always-on-top guarantee. A log warning is emitted.
+- **No `wlr-layer-shell` available:** Popup support is **disabled** with a log warning. No fallback to normal GTK windows — this avoids expanding scope and dropping key guarantees (always-on-top, positioning). Matches the existing quick terminal behavior, which also requires layer-shell.
 
 **Focus loss:** `notify::is-active` signal → check `autohide` → hide if true.
 
@@ -373,7 +375,7 @@ These existing QuickTerminal support files move into the Popup directory, rename
 - Quick terminal migration — use old `quick-terminal-*` config, verify identical behavior
 - `toggle_quick_terminal` keybind — verify it still works as before
 - Wayland — verify edge-anchored positioning, warning on x/y usage, test on Sway and GNOME
-- Wayland without layer-shell — verify fallback to normal window with warning
+- Wayland without layer-shell — verify popup is disabled with warning (no fallback)
 - macOS — verify full coordinate positioning, space handling, focus restoration
 - macOS App Intent — "Open Quick Terminal" via Shortcuts, verify show-only (not toggle)
 
