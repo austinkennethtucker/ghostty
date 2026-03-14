@@ -17,15 +17,16 @@ class PopupWindow: NSPanel {
             defer: false
         )
 
-        // Keep the titlebar (traffic lights, title, rounded corners) but
-        // add nonactivatingPanel so showing the popup doesn't steal the
-        // "active application" status.
+        // Remove titlebar chrome but keep .titled for native rounded corners,
+        // then add nonactivatingPanel so showing the popup doesn't steal focus.
         styleMask.insert(.nonactivatingPanel)
-
-        // Use the same titlebar style as normal Ghostty windows so the
-        // popup gets traffic lights, title text, and native rounded corners.
         titlebarAppearsTransparent = true
-        titleVisibility = .visible
+        titleVisibility = .hidden
+
+        // Hide the traffic light buttons (close/minimize/zoom)
+        standardWindowButton(.closeButton)?.isHidden = true
+        standardWindowButton(.miniaturizeButton)?.isHidden = true
+        standardWindowButton(.zoomButton)?.isHidden = true
 
         // Accessibility: give the window a unique identifier and the correct
         // floating-window subrole so tools like AeroSpace can handle it.
