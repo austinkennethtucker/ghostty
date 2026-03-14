@@ -22,6 +22,7 @@ const fontpkg = @import("../font/main.zig");
 const inputpkg = @import("../input.zig");
 const internal_os = @import("../os/main.zig");
 const cli = @import("../cli.zig");
+const popupmod = @import("../apprt/popup.zig");
 
 const conditional = @import("conditional.zig");
 const Conditional = conditional.Conditional;
@@ -2860,6 +2861,54 @@ keybind: Keybinds = .{},
 ///
 /// Available since: 1.2.0
 @"command-palette-entry": RepeatableCommand = .{},
+
+/// Define named popup terminal profiles. Each popup is a lightweight overlay
+/// terminal that can be toggled with a keybind. Multiple popups can be
+/// defined, each with its own name and configuration.
+///
+/// The format is `name:key:value,key:value,...` where `name` is a unique
+/// identifier for the popup (letters, digits, hyphens, underscores only)
+/// and the remaining key-value pairs configure the popup's behavior.
+///
+/// Available keys:
+///
+///   * `position` - Where to place the popup. One of: `center`, `top`,
+///     `bottom`, `left`, `right`. Default: `center`.
+///
+///   * `anchor` - Corner to pin the popup to when using `x`/`y` offsets.
+///     One of: `top_left`, `top_right`, `bottom_left`, `bottom_right`,
+///     `center`. Default: unset (determined by position).
+///
+///   * `x` - Horizontal offset. Pixels (`200`) or percent (`50%`).
+///
+///   * `y` - Vertical offset. Pixels (`100`) or percent (`25%`).
+///
+///   * `width` - Popup width. Pixels or percent. Default: `80%`.
+///
+///   * `height` - Popup height. Pixels or percent. Default: `80%`.
+///
+///   * `keybind` - Key combination to toggle this popup.
+///
+///   * `command` - Shell command to run inside the popup.
+///
+///   * `autohide` - Hide popup when it loses focus. Default: `true`.
+///
+///   * `persist` - Keep the popup process alive when hidden. Default: `true`.
+///
+/// Examples:
+///
+/// ```ini
+/// popup = quick:position:top,height:40%,keybind:ctrl+grave_accent
+/// popup = calc:command:bc -l,width:300,height:400,position:bottom
+/// popup = notes:command:vim ~/notes.md,width:80%,height:80%
+/// ```
+///
+/// Setting this to an empty value clears all previously defined popups:
+///
+/// ```ini
+/// popup =
+/// ```
+popup: RepeatablePopup = .{},
 
 /// Sets the reporting format for OSC sequences that request color information.
 /// Ghostty currently supports OSC 10 (foreground), OSC 11 (background), and
@@ -8887,6 +8936,105 @@ pub const RepeatableCommand = struct {
 
         try list.parseCLI(alloc, "");
         try testing.expectEqual(@as(usize, 0), list.cval().len);
+    }
+};
+
+pub const RepeatablePopup = struct {
+    const Self = @This();
+
+    names: std.ArrayListUnmanaged([:0]const u8) = .empty,
+    profiles: std.ArrayListUnmanaged(popupmod.PopupProfile) = .empty,
+
+    pub fn parseCLI(
+        self: *Self,
+        alloc: Allocator,
+        input_: ?[]const u8,
+    ) !void {
+        const input = input_ orelse "";
+        if (input.len == 0) {
+            self.names.clearRetainingCapacity();
+            self.profiles.clearRetainingCapacity();
+            return;
+        }
+
+        const colon_idx = std.mem.indexOf(u8, input, ":") orelse
+            return error.InvalidValue;
+        const name_raw = std.mem.trim(u8, input[0..colon_idx], " ");
+
+        if (!popupmod.isValidName(name_raw))
+            return error.InvalidValue;
+
+        const remainder = input[colon_idx + 1 ..];
+
+        const profile = try cli.args.parseAutoStruct(
+            popupmod.PopupProfile,
+            alloc,
+            remainder,
+            null,
+        );
+
+        const name = try alloc.dupeZ(u8, name_raw);
+
+        // Last definition wins: if a popup with this name already
+        // exists, replace its profile instead of appending a duplicate.
+        for (self.names.items, 0..) |existing, i| {
+            if (std.mem.eql(u8, existing, name_raw)) {
+                self.profiles.items[i] = profile;
+                alloc.free(name);
+                return;
+            }
+        }
+
+        try self.names.append(alloc, name);
+        try self.profiles.append(alloc, profile);
+    }
+
+    /// Look up a popup profile by name.
+    pub fn get(self: *const Self, name: []const u8) ?popupmod.PopupProfile {
+        for (self.names.items, 0..) |n, i| {
+            if (std.mem.eql(u8, n, name)) return self.profiles.items[i];
+        }
+        return null;
+    }
+
+    /// Deep copy of the struct. Required by Config.
+    pub fn clone(self: *const Self, alloc: Allocator) !Self {
+        var new: Self = .{};
+        for (self.names.items) |name| {
+            try new.names.append(alloc, try alloc.dupeZ(u8, name));
+        }
+        for (self.profiles.items) |profile| {
+            try new.profiles.append(alloc, profile);
+        }
+        return new;
+    }
+
+    pub fn deinit(self: *Self, alloc: Allocator) void {
+        for (self.names.items) |name| alloc.free(name);
+        self.names.deinit(alloc);
+        self.profiles.deinit(alloc);
+    }
+
+    /// Used by Formatter.
+    /// TODO: implement proper round-trip formatting once Dimension/Position
+    /// have std.fmt support.
+    pub fn formatEntry(
+        self: Self,
+        formatter: formatterpkg.EntryFormatter,
+    ) !void {
+        _ = self;
+        _ = formatter;
+    }
+
+    /// Compare if two values are equal. Required by Config.
+    pub fn equal(a: Self, b: Self) bool {
+        if (a.names.items.len != b.names.items.len) return false;
+        for (a.names.items, a.profiles.items, 0..) |name_a, prof_a, i| {
+            const name_b = b.names.items[i];
+            if (!std.mem.eql(u8, name_a, name_b)) return false;
+            if (!std.meta.eql(prof_a, b.profiles.items[i])) return false;
+        }
+        return true;
     }
 };
 
