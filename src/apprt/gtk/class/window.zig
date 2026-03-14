@@ -157,7 +157,7 @@ pub const Window = extern struct {
                 Self,
                 bool,
                 .{
-                    .default = true,
+                    .default = false,
                     .accessor = gobject.ext.privateFieldAccessor(
                         Self,
                         Private,
