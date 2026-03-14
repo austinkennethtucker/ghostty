@@ -741,9 +741,8 @@ pub fn migrateQuickTerminalToPopup(self: *Config, alloc: Allocator) !void {
     // Map quick-terminal-size to width/height based on position
     // ... (implementation details follow existing QuickTerminalSize logic)
 
-    const name = try alloc.dupe(u8, "quick");
-    const name = try alloc.dupeZ(u8, "quick");
-    try self.popup.names.append(alloc, name);
+    const name_z = try alloc.dupeZ(u8, "quick");
+    try self.popup.names.append(alloc, name_z);
     try self.popup.profiles.append(alloc, profile);
 }
 ```
@@ -972,13 +971,12 @@ pub const PopupManager = struct {
     /// Profile name → state. Names are owned copies.
     instances: std.StringHashMapUnmanaged(PopupState) = .{},
 
-    pub fn init(alloc: Allocator, app: *Application, profiles: anytype) !PopupManager {
+    pub fn init(alloc: Allocator, app: *Application, popup_config: *const configpkg.RepeatablePopup) !PopupManager {
         var self: PopupManager = .{ .alloc = alloc, .app = app };
         // Copy profiles from config into manager-owned storage
-        var it = profiles.iterator();
-        while (it.next()) |entry| {
-            const name = try alloc.dupe(u8, entry.key_ptr.*);
-            try self.instances.put(alloc, name, .{ .profile = entry.value_ptr.* });
+        for (popup_config.names.items, popup_config.profiles.items) |name, profile| {
+            const name_copy = try alloc.dupe(u8, name);
+            try self.instances.put(alloc, name_copy, .{ .profile = profile });
         }
         return self;
     }
