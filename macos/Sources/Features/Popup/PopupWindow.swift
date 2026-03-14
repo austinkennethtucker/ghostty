@@ -17,11 +17,15 @@ class PopupWindow: NSPanel {
             defer: false
         )
 
-        // Remove the title bar so the window is a plain rectangle, then add
-        // nonactivatingPanel so showing the popup doesn't steal the "active
-        // application" status (same approach as QuickTerminalWindow).
-        styleMask.remove(.titled)
+        // Keep the titlebar (traffic lights, title, rounded corners) but
+        // add nonactivatingPanel so showing the popup doesn't steal the
+        // "active application" status.
         styleMask.insert(.nonactivatingPanel)
+
+        // Use the same titlebar style as normal Ghostty windows so the
+        // popup gets traffic lights, title text, and native rounded corners.
+        titlebarAppearsTransparent = true
+        titleVisibility = .visible
 
         // Accessibility: give the window a unique identifier and the correct
         // floating-window subrole so tools like AeroSpace can handle it.
@@ -36,17 +40,6 @@ class PopupWindow: NSPanel {
         hidesOnDeactivate = false
         isMovableByWindowBackground = true
         level = .floating
-
-        // Rounded corners: make the window background transparent and
-        // clip the content view to a rounded rect.
-        backgroundColor = .clear
-        isOpaque = false
-        if let contentView = contentView {
-            contentView.wantsLayer = true
-            contentView.layer?.cornerRadius = 12
-            contentView.layer?.cornerCurve = .continuous
-            contentView.layer?.masksToBounds = true
-        }
     }
 
     @available(*, unavailable)
