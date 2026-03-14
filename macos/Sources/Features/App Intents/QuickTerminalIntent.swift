@@ -24,6 +24,9 @@ struct QuickTerminalIntent: AppIntent {
         let c = delegate.quickController
         c.animateIn()
 
+        // Also show through PopupManager so the popup system stays in sync.
+        delegate.popupManager.show("quick")
+
         // Grab all our terminals
         let terminals = c.surfaceTree.root?.leaves().map {
             TerminalEntity($0)

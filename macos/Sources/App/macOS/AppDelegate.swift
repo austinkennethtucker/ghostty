@@ -131,6 +131,9 @@ class AppDelegate: NSObject,
         }
     }
 
+    /// Manages popup terminal instances (named popup profiles).
+    lazy var popupManager: PopupManager = PopupManager(ghosttyApp: ghostty)
+
     /// Manages updates
     let updateController = UpdateController()
     var updateViewModel: UpdateViewModel {
@@ -984,6 +987,8 @@ class AppDelegate: NSObject,
 
     @IBAction func toggleQuickTerminal(_ sender: Any) {
         quickController.toggle()
+        // Also toggle through PopupManager so the popup system stays in sync.
+        popupManager.toggle("quick")
     }
 
     /// Toggles visibility of all Ghosty Terminal windows. When hidden, activates Ghostty as the frontmost application

@@ -602,6 +602,19 @@ extension Ghostty {
             guard ghostty_config_get(config, &v, key, UInt(key.lengthOfBytes(using: .utf8))) else { return QuickTerminalSize() }
             return QuickTerminalSize(from: v)
         }
+
+        /// Get popup profile configurations.
+        /// TODO: Replace with proper C API (ghostty_config_popup_count,
+        /// ghostty_config_popup_name, ghostty_config_popup_profile) when
+        /// available. For now returns an empty dictionary; popup controllers
+        /// will use their default PopupProfileConfig until the C API is wired.
+        var popupProfiles: [String: PopupController.PopupProfileConfig] {
+            // The full implementation requires adding C functions to ghostty.h
+            // and implementing them in Zig to iterate over parsed popup config
+            // entries. Until then, profiles fall back to defaults and the "quick"
+            // profile is always available implicitly via PopupManager.
+            return [:]
+        }
         #endif
 
         var resizeOverlay: ResizeOverlay {
