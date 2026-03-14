@@ -8,7 +8,7 @@ import GhosttyKit
 /// of the manager (or until explicitly removed).
 class PopupManager {
     private let ghosttyApp: Ghostty.App
-    private var controllers: [String: PopupController] = [:]
+    private(set) var controllers: [String: PopupController] = [:]
 
     /// Profile configurations keyed by name.  Populated from the Ghostty
     /// config in a future task (Task 20) via the C API.
@@ -16,20 +16,30 @@ class PopupManager {
 
     init(ghosttyApp: Ghostty.App) {
         self.ghosttyApp = ghosttyApp
-        // TODO: Load popup profiles from config via C API (Task 20).
+        // Always register a "quick" profile with defaults that match
+        // the existing quick terminal behavior.
+        profileConfigs["quick"] = PopupController.PopupProfileConfig(
+            position: "top",
+            widthPercent: 100,
+            heightPercent: 50,
+            autohide: true,
+            persist: true,
+            command: nil
+        )
+        // TODO: Load additional popup profiles from config via C API.
     }
 
     // MARK: - Public API
 
     /// Toggle the named popup: show it if hidden, hide it if visible.
     func toggle(_ name: String) {
-        let controller = getOrCreateController(name: name)
+        guard let controller = getOrCreateController(name: name) else { return }
         controller.toggle()
     }
 
     /// Ensure the named popup is visible.
     func show(_ name: String) {
-        let controller = getOrCreateController(name: name)
+        guard let controller = getOrCreateController(name: name) else { return }
         controller.show()
     }
 
@@ -51,17 +61,23 @@ class PopupManager {
     /// config is reloaded).  Existing controllers are NOT recreated — they
     /// keep the config they were created with.
     func updateProfileConfigs(_ configs: [String: PopupController.PopupProfileConfig]) {
-        self.profileConfigs = configs
+        for (name, config) in configs {
+            profileConfigs[name] = config
+        }
     }
 
     // MARK: - Private
 
-    private func getOrCreateController(name: String) -> PopupController {
+    private func getOrCreateController(name: String) -> PopupController? {
         if let existing = controllers[name] {
             return existing
         }
 
-        let config = profileConfigs[name] ?? PopupController.PopupProfileConfig()
+        guard let config = profileConfigs[name] else {
+            Ghostty.logger.warning("popup profile '\(name)' not found in config")
+            return nil
+        }
+
         let controller = PopupController(
             name: name,
             config: config,
