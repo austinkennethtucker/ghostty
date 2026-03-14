@@ -14,8 +14,14 @@ class PopupController: BaseTerminalController {
     /// Lightweight value type holding the resolved configuration for one
     /// popup profile.  Defaults match a reasonable center-screen popup.
     struct PopupProfileConfig {
-        enum Position: String {
-            case center, top, bottom, left, right
+        /// Position values must match the Zig enum order in apprt/popup.zig:
+        /// center=0, top=1, bottom=2, left=3, right=4
+        enum Position: Int {
+            case center = 0
+            case top = 1
+            case bottom = 2
+            case left = 3
+            case right = 4
         }
         var position: Position = .center
         var widthPercent: Int = 80

@@ -66,6 +66,38 @@ pub const PopupProfile = struct {
     command: ?[]const u8 = null,
     autohide: bool = true,
     persist: bool = true,
+
+    /// C-compatible representation of a PopupProfile.
+    /// Sync with: ghostty_popup_profile_config_s in ghostty.h
+    pub const C = extern struct {
+        position: c_int,
+        width_value: u32,
+        width_is_percent: bool,
+        height_value: u32,
+        height_is_percent: bool,
+        autohide: bool,
+        persist: bool,
+        /// Sentinel-terminated command string, or null if no command.
+        /// This points into separately allocated memory (dupeZ'd),
+        /// because the source `command` field is `?[]const u8` (no sentinel).
+        command: ?[*:0]const u8,
+    };
+
+    /// Convert to C-compatible representation.
+    /// `command_z` is the pre-allocated sentinel-terminated copy of `command`,
+    /// or null if no command was specified.
+    pub fn cval(self: PopupProfile, command_z: ?[*:0]const u8) C {
+        return .{
+            .position = @intFromEnum(self.position),
+            .width_value = self.width.value,
+            .width_is_percent = self.width.unit == .percent,
+            .height_value = self.height.value,
+            .height_is_percent = self.height.unit == .percent,
+            .autohide = self.autohide,
+            .persist = self.persist,
+            .command = command_z,
+        };
+    }
 };
 
 /// Validate a popup profile name.

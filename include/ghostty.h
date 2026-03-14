@@ -488,6 +488,27 @@ typedef struct {
   size_t len;
 } ghostty_config_command_list_s;
 
+// apprt.popup.PopupProfile.C
+// Sync with: apprt.popup.PopupProfile.C
+typedef struct {
+  int position;
+  uint32_t width_value;
+  bool width_is_percent;
+  uint32_t height_value;
+  bool height_is_percent;
+  bool autohide;
+  bool persist;
+  const char* command;
+} ghostty_popup_profile_config_s;
+
+// config.Config.RepeatablePopup.C
+// Sync with: config.Config.RepeatablePopup.C
+typedef struct {
+  const char* const* names;
+  const ghostty_popup_profile_config_s* profiles;
+  size_t len;
+} ghostty_config_popup_list_s;
+
 // config.Palette
 typedef struct {
   ghostty_config_color_s colors[256];
@@ -640,6 +661,11 @@ typedef struct {
 typedef struct {
   const char* title;
 } ghostty_action_set_title_s;
+
+// apprt.action.PopupAction.C
+typedef struct {
+  const char* name;
+} ghostty_action_popup_s;
 
 // apprt.action.PromptTitle
 typedef enum {
@@ -867,6 +893,9 @@ typedef enum {
   GHOSTTY_ACTION_TOGGLE_TAB_OVERVIEW,
   GHOSTTY_ACTION_TOGGLE_WINDOW_DECORATIONS,
   GHOSTTY_ACTION_TOGGLE_QUICK_TERMINAL,
+  GHOSTTY_ACTION_TOGGLE_POPUP,
+  GHOSTTY_ACTION_SHOW_POPUP,
+  GHOSTTY_ACTION_HIDE_POPUP,
   GHOSTTY_ACTION_TOGGLE_COMMAND_PALETTE,
   GHOSTTY_ACTION_TOGGLE_VISIBILITY,
   GHOSTTY_ACTION_TOGGLE_BACKGROUND_OPACITY,
@@ -937,6 +966,9 @@ typedef union {
   ghostty_action_scrollbar_s scrollbar;
   ghostty_action_inspector_e inspector;
   ghostty_action_desktop_notification_s desktop_notification;
+  ghostty_action_popup_s toggle_popup;
+  ghostty_action_popup_s show_popup;
+  ghostty_action_popup_s hide_popup;
   ghostty_action_set_title_s set_title;
   ghostty_action_set_title_s set_tab_title;
   ghostty_action_prompt_title_e prompt_title;

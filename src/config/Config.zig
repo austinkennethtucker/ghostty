@@ -9182,6 +9182,29 @@ pub const RepeatablePopup = struct {
     names: std.ArrayListUnmanaged([:0]const u8) = .empty,
     profiles: std.ArrayListUnmanaged(popupmod.PopupProfile) = .empty,
 
+    /// Parallel C-API arrays, maintained in sync with names/profiles.
+    names_c: std.ArrayListUnmanaged([*:0]const u8) = .empty,
+    profiles_c: std.ArrayListUnmanaged(popupmod.PopupProfile.C) = .empty,
+
+    /// Sentinel-terminated copies of command strings for the C API.
+    /// Indexed in parallel with names/profiles; null when no command.
+    commands_z: std.ArrayListUnmanaged(?[*:0]const u8) = .empty,
+
+    /// ghostty_config_popup_list_s
+    pub const C = extern struct {
+        names: [*][*:0]const u8,
+        profiles: [*]popupmod.PopupProfile.C,
+        len: usize,
+    };
+
+    pub fn cval(self: *const Self) C {
+        return .{
+            .names = self.names_c.items.ptr,
+            .profiles = self.profiles_c.items.ptr,
+            .len = self.names_c.items.len,
+        };
+    }
+
     pub fn parseCLI(
         self: *Self,
         alloc: Allocator,
@@ -9191,6 +9214,9 @@ pub const RepeatablePopup = struct {
         if (input.len == 0) {
             self.names.clearRetainingCapacity();
             self.profiles.clearRetainingCapacity();
+            self.names_c.clearRetainingCapacity();
+            self.profiles_c.clearRetainingCapacity();
+            self.commands_z.clearRetainingCapacity();
             return;
         }
 
@@ -9210,6 +9236,12 @@ pub const RepeatablePopup = struct {
             null,
         );
 
+        // Create sentinel-terminated copy of the command for C API.
+        const cmd_z: ?[*:0]const u8 = if (profile.command) |cmd|
+            (try alloc.dupeZ(u8, cmd)).ptr
+        else
+            null;
+
         const name = try alloc.dupeZ(u8, name_raw);
 
         // Last definition wins: if a popup with this name already
@@ -9217,6 +9249,8 @@ pub const RepeatablePopup = struct {
         for (self.names.items, 0..) |existing, i| {
             if (std.mem.eql(u8, existing, name_raw)) {
                 self.profiles.items[i] = profile;
+                self.commands_z.items[i] = cmd_z;
+                self.profiles_c.items[i] = profile.cval(cmd_z);
                 alloc.free(name);
                 return;
             }
@@ -9224,6 +9258,9 @@ pub const RepeatablePopup = struct {
 
         try self.names.append(alloc, name);
         try self.profiles.append(alloc, profile);
+        try self.names_c.append(alloc, name.ptr);
+        try self.profiles_c.append(alloc, profile.cval(cmd_z));
+        try self.commands_z.append(alloc, cmd_z);
     }
 
     /// Look up a popup profile by name.
@@ -9238,10 +9275,19 @@ pub const RepeatablePopup = struct {
     pub fn clone(self: *const Self, alloc: Allocator) !Self {
         var new: Self = .{};
         for (self.names.items) |name| {
-            try new.names.append(alloc, try alloc.dupeZ(u8, name));
+            const duped = try alloc.dupeZ(u8, name);
+            try new.names.append(alloc, duped);
+            try new.names_c.append(alloc, duped.ptr);
         }
         for (self.profiles.items) |profile| {
             try new.profiles.append(alloc, profile);
+            // Re-create sentinel-terminated command copy for the clone.
+            const new_cmd_z: ?[*:0]const u8 = if (profile.command) |cmd|
+                (try alloc.dupeZ(u8, cmd)).ptr
+            else
+                null;
+            try new.commands_z.append(alloc, new_cmd_z);
+            try new.profiles_c.append(alloc, profile.cval(new_cmd_z));
         }
         return new;
     }
@@ -9250,6 +9296,9 @@ pub const RepeatablePopup = struct {
         for (self.names.items) |name| alloc.free(name);
         self.names.deinit(alloc);
         self.profiles.deinit(alloc);
+        self.names_c.deinit(alloc);
+        self.profiles_c.deinit(alloc);
+        self.commands_z.deinit(alloc);
     }
 
     /// Used by Formatter.

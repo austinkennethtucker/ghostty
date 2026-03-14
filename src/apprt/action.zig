@@ -114,6 +114,15 @@ pub const Action = union(Key) {
     /// Toggle the quick terminal in or out.
     toggle_quick_terminal,
 
+    /// Toggle a named popup terminal visibility.
+    toggle_popup: PopupAction,
+
+    /// Show a named popup terminal (create if needed, no-op if visible).
+    show_popup: PopupAction,
+
+    /// Hide a named popup terminal.
+    hide_popup: PopupAction,
+
     /// Toggle the command palette.
     toggle_command_palette,
 
@@ -356,6 +365,9 @@ pub const Action = union(Key) {
         toggle_tab_overview,
         toggle_window_decorations,
         toggle_quick_terminal,
+        toggle_popup,
+        show_popup,
+        hide_popup,
         toggle_command_palette,
         toggle_visibility,
         toggle_background_opacity,
@@ -712,6 +724,29 @@ pub const SetTitle = struct {
         writer: *std.Io.Writer,
     ) !void {
         try writer.print("{s}{{ {s} }}", .{ @typeName(@This()), value.title });
+    }
+};
+
+/// Payload for popup actions (toggle, show, hide).
+/// Sync with: ghostty_action_popup_s
+pub const PopupAction = struct {
+    name: [:0]const u8,
+
+    pub const C = extern struct {
+        name: [*:0]const u8,
+    };
+
+    pub fn cval(self: PopupAction) C {
+        return .{ .name = self.name.ptr };
+    }
+
+    pub fn format(
+        value: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: *std.Io.Writer,
+    ) !void {
+        try writer.print("{s}{{ {s} }}", .{ @typeName(@This()), value.name });
     }
 };
 

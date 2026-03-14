@@ -603,17 +603,36 @@ extension Ghostty {
             return QuickTerminalSize(from: v)
         }
 
-        /// Get popup profile configurations.
-        /// TODO: Replace with proper C API (ghostty_config_popup_count,
-        /// ghostty_config_popup_name, ghostty_config_popup_profile) when
-        /// available. For now returns an empty dictionary; popup controllers
-        /// will use their default PopupProfileConfig until the C API is wired.
+        /// Get popup profile configurations from the Zig config system.
+        /// Returns a dictionary of profile name -> PopupProfileConfig.
         var popupProfiles: [String: PopupController.PopupProfileConfig] {
-            // The full implementation requires adding C functions to ghostty.h
-            // and implementing them in Zig to iterate over parsed popup config
-            // entries. Until then, profiles fall back to defaults and the "quick"
-            // profile is always available implicitly via PopupManager.
-            return [:]
+            guard let config = self.config else { return [:] }
+            var v = ghostty_config_popup_list_s()
+            let key = "popup"
+            guard ghostty_config_get(config, &v, key, UInt(key.count)) else { return [:] }
+            guard v.len > 0 else { return [:] }
+
+            var result: [String: PopupController.PopupProfileConfig] = [:]
+            guard let names = v.names, let profiles = v.profiles else { return [:] }
+            for i in 0..<v.len {
+                guard let namePtr = names[i] else { continue }
+                let name = String(cString: namePtr)
+                let p = profiles[i]
+                let cmd: String? = if let cmdPtr = p.command {
+                    String(cString: cmdPtr)
+                } else {
+                    nil
+                }
+                result[name] = PopupController.PopupProfileConfig(
+                    position: PopupController.PopupProfileConfig.Position(rawValue: Int(p.position)) ?? .center,
+                    widthPercent: Int(p.width_is_percent ? p.width_value : 80),
+                    heightPercent: Int(p.height_is_percent ? p.height_value : 80),
+                    autohide: p.autohide,
+                    persist: p.persist,
+                    command: cmd
+                )
+            }
+            return result
         }
         #endif
 

@@ -29,7 +29,13 @@ class PopupManager {
             persist: true,
             command: nil
         )
-        // TODO: Load additional popup profiles from config via C API.
+
+        // Load popup profiles from config (overrides default "quick" if
+        // the user defined one explicitly).
+        let configProfiles = ghosttyApp.config.popupProfiles
+        if !configProfiles.isEmpty {
+            updateProfileConfigs(configProfiles)
+        }
     }
 
     // MARK: - Public API
