@@ -73,7 +73,7 @@ Gutter with relative line numbers during vi mode for fast jump navigation.
 
 ```
 v1 (done) → v2 (config hot-reload)
-              ├→ v3 (sessions)        ← can parallel v4
-              └→ v4 (vi mode)         ← can parallel v3
+              ├→ v3 (sessions)        ← can run in parallel with v4
+              └→ v4 (vi mode)         ← can run in parallel with v3
                   └→ v5 (rel numbers) ← requires v4
 ```
