@@ -55,7 +55,9 @@ In relative mode, the max is `viewport_rows - 1` (typically 2-3 cells). In absol
 
 ### Rendering Order
 
-Line numbers are the last overlay feature applied in `applyFeatures`, rendering on top of search highlights, selections, and other overlays in the gutter area.
+In `generic.zig`, `.vi_line_numbers` is appended to the feature list **after** `.vi_cursor` and `.vi_mode_indicator`. This means line numbers render last in `applyFeatures`, on top of search highlights, selections, the vi cursor, and other overlays in the gutter area.
+
+Exception: the gutter background is **not drawn** on the bottom row when the mode indicator is active, so the indicator bar remains fully visible beneath the gutter columns.
 
 ## 2. Digit Rendering
 
@@ -102,16 +104,41 @@ Added to `src/config/Config.zig` as an enum field. Flows through `DerivedConfig`
 - New keybind action: `toggle_vi_line_numbers` in `Binding.zig`, scoped to surface.
 - No default key binding — user adds one if desired.
 - Toggle is on/off for the configured mode (does not cycle through modes).
+- If `vi-mode-line-numbers` is `off`, the toggle action has no effect.
 - A `vi_line_numbers_visible: bool` field on `Surface` tracks the toggle state, defaulting to `true` on vi-mode entry (auto-activate).
+
+### Hot-Reload
+
+Config changes to `vi-mode-line-numbers` take effect on the next render frame. If vi-mode is active, the gutter appears, disappears, or changes mode immediately.
 
 ## 4. State Plumbing
 
 ### Render State Extension
 
-Two new fields on `State.zig`'s `ViMode` struct:
+Three new fields on `State.zig`'s `ViMode` struct:
 
 - `line_numbers: enum { off, relative, absolute }` — active mode (reflects config + runtime toggle)
-- `cursor_screen_row: ?usize` — cursor's absolute row in the scrollback viewport (for computing relative distances and displaying the absolute number on the cursor line)
+- `cursor_viewport_row: ?usize` — cursor's row in viewport-relative coordinates (row 0 = top of visible area). Used to compute relative distances. This is the same coordinate space as the existing `cursor_row` field.
+- `viewport_top_abs_row: ?usize` — absolute scrollback row of the viewport's top-left corner, computed via `pointFromPin(.screen, viewport_top_pin)`. Used to derive the absolute row number of any visible line: `viewport_top_abs_row + viewport_row_index`.
+
+**Coordinate spaces (clarification):**
+- **Viewport-relative** (`pointFromPin(.viewport, pin)`): Row 0 is the top of the visible area. Used for relative distance computation and positioning within the overlay surface.
+- **Scrollback-absolute** (`pointFromPin(.screen, pin)`): Row 0 is the very first line in the scrollback history. Used for displaying absolute line numbers.
+
+The cursor's absolute row for display = `viewport_top_abs_row + cursor_viewport_row`.
+
+### Feature Variant Payload
+
+The `.vi_line_numbers` variant in `Overlay.Feature` carries its data as payload:
+
+```zig
+vi_line_numbers: struct {
+    mode: enum { relative, absolute },
+    cursor_row: usize,           // viewport-relative
+    viewport_top_abs_row: usize, // scrollback-absolute row of viewport top
+    viewport_rows: usize,        // total visible rows
+},
+```
 
 ### Data Flow
 
@@ -119,22 +146,30 @@ Two new fields on `State.zig`'s `ViMode` struct:
 Surface.updateViModeRenderState()
   |-- read config vi-mode-line-numbers
   |-- check vi_line_numbers_visible toggle
-  |-- compute cursor's absolute row via pointFromPin(.viewport, cursor_pin)
+  |-- compute cursor viewport row via pointFromPin(.viewport, cursor_pin)
+  |-- compute viewport top absolute row via pointFromPin(.screen, viewport_top_pin)
   |-- set renderer_state.vi_mode.line_numbers = relative|absolute|off
-  |-- set renderer_state.vi_mode.cursor_screen_row = row
+  |-- set renderer_state.vi_mode.cursor_viewport_row = viewport_y
+  |-- set renderer_state.vi_mode.viewport_top_abs_row = screen_y
   v
 generic.zig updateFrame() critical section
   |-- read state.vi_mode
   |-- if line_numbers != .off:
-  |     append .vi_line_numbers feature to overlay list
+  |     append .vi_line_numbers { .mode, .cursor_row, .viewport_top_abs_row, .viewport_rows }
   v
 Overlay.applyFeatures()
-  |-- highlightViLineNumbers(cursor_screen_row, viewport_rows, gutter_width)
-  |     For each visible row:
-  |       if row == cursor_row: draw absolute number (bright white)
-  |       else: draw |cursor_row - row| (40% white)
-  |     Draw 30% black background behind gutter
+  |-- highlightViLineNumbers(payload)
+  |     Compute gutter_width from max displayed number
+  |     Draw 30% black background behind gutter (skip bottom row if mode indicator active)
   |     Draw 1px separator line at gutter right edge
+  |     For each visible row:
+  |       abs_row = viewport_top_abs_row + row_index
+  |       if row_index == cursor_row:
+  |         draw abs_row in bright white (current line)
+  |       else if mode == .relative:
+  |         draw |cursor_row - row_index| in 40% white
+  |       else: // absolute
+  |         draw abs_row in 40% white
   v
 overlay uploaded as GPU image, composited on top of terminal
 ```
@@ -155,7 +190,7 @@ overlay uploaded as GPU image, composited on top of terminal
 | Scrollback garbage collection (page pruned) | Cursor resets to viewport top-left (existing behavior); line numbers follow automatically |
 | Visual selection in gutter area | Selection renders first, line numbers render on top (partially obscure selection in gutter columns) |
 | Search highlights in gutter area | Same — numbers on top |
-| Mode indicator overlap (bottom row) | Indicator renders first, line number renders on top; overlap only on bottom row's number — acceptable |
+| Mode indicator overlap (bottom row) | Gutter background is skipped on the bottom row when the mode indicator is active, preserving the indicator's visual. The bottom row's line number digit still renders on top. |
 | Light terminal themes | 30% black overlay still darkens gutter; 40% white digits visible against light backgrounds, though less distinct. Acceptable for v1. |
 
 ## Files to Modify
@@ -163,8 +198,8 @@ overlay uploaded as GPU image, composited on top of terminal
 | File | Changes |
 |------|---------|
 | `src/config/Config.zig` | Add `vi-mode-line-numbers` enum field (off/relative/absolute) |
-| `src/renderer/State.zig` | Add `line_numbers` and `cursor_screen_row` to `ViMode` struct |
-| `src/Surface.zig` | Extend `updateViModeRenderState()` to set line number fields; add `vi_line_numbers_visible` toggle field |
+| `src/renderer/State.zig` | Add `line_numbers`, `cursor_viewport_row`, and `viewport_top_abs_row` to `ViMode` struct |
+| `src/Surface.zig` | Extend `updateViModeRenderState()` to compute and set line number fields; add `vi_line_numbers_visible` toggle field |
 | `src/renderer/generic.zig` | Read line number config, append `.vi_line_numbers` feature when active |
 | `src/renderer/Overlay.zig` | Add `.vi_line_numbers` feature variant; implement `highlightViLineNumbers()`, `drawDigitString()`, `drawDigit()` |
 | `src/input/Binding.zig` | Add `toggle_vi_line_numbers` action |
