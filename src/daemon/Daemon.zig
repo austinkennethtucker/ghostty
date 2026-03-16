@@ -21,6 +21,23 @@ const log = std.log.scoped(.daemon);
 const Daemon = @This();
 
 // -----------------------------------------------------------------------
+// Per-client state (tracks partial frame data between reads)
+// -----------------------------------------------------------------------
+
+const ClientState = struct {
+    fd: posix.fd_t,
+    read_buf: std.ArrayList(u8),
+
+    fn init(alloc: Allocator, fd: posix.fd_t) ClientState {
+        return .{ .fd = fd, .read_buf = std.ArrayList(u8).init(alloc) };
+    }
+
+    fn deinit(self: *ClientState) void {
+        self.read_buf.deinit();
+    }
+};
+
+// -----------------------------------------------------------------------
 // Platform-specific constants for child process setup
 // -----------------------------------------------------------------------
 
@@ -51,8 +68,8 @@ server: Server,
 /// All live sessions, keyed by session name.
 sessions: std.StringHashMap(*Session),
 
-/// Connected client file descriptors.
-clients: std.ArrayList(posix.fd_t),
+/// Connected clients with per-client read buffers for partial frames.
+clients: std.ArrayList(ClientState),
 
 /// Map from PTY master fd → the Terminal that owns it, for fast output
 /// routing when a PTY becomes readable.
@@ -87,7 +104,7 @@ pub fn init(alloc: Allocator) !Daemon {
     return .{
         .server = server,
         .sessions = std.StringHashMap(*Session).init(alloc),
-        .clients = std.ArrayList(posix.fd_t).init(alloc),
+        .clients = std.ArrayList(ClientState).init(alloc),
         .pty_terminals = std.AutoHashMap(posix.fd_t, *Terminal).init(alloc),
         .id_terminals = std.AutoHashMap(u32, *Terminal).init(alloc),
         .id_sessions = std.AutoHashMap(u32, []const u8).init(alloc),
@@ -96,9 +113,10 @@ pub fn init(alloc: Allocator) !Daemon {
 }
 
 pub fn deinit(self: *Daemon) void {
-    // Close all client connections.
-    for (self.clients.items) |fd| {
-        _ = std.c.close(fd);
+    // Close all client connections and free their read buffers.
+    for (self.clients.items) |*client| {
+        _ = std.c.close(client.fd);
+        client.deinit();
     }
     self.clients.deinit();
 
@@ -147,8 +165,8 @@ pub fn run(self: *Daemon) !void {
 
         // Client fds
         const client_base: usize = 1;
-        for (self.clients.items, 0..) |fd, i| {
-            pollfds[client_base + i] = .{ .fd = fd, .events = posix.POLL.IN, .revents = undefined };
+        for (self.clients.items, 0..) |client, i| {
+            pollfds[client_base + i] = .{ .fd = client.fd, .events = posix.POLL.IN, .revents = undefined };
         }
 
         // PTY fds
@@ -187,19 +205,20 @@ pub fn run(self: *Daemon) !void {
             while (i > 0) {
                 i -= 1;
                 const pfd = &pollfds[client_base + i];
-                const fd = pfd.fd;
 
                 if (pfd.revents & (posix.POLL.HUP | posix.POLL.ERR) != 0) {
-                    self.disconnectClient(fd);
-                    _ = self.clients.orderedRemove(i);
+                    var client = self.clients.orderedRemove(i);
+                    self.disconnectClient(client.fd);
+                    client.deinit();
                     continue;
                 }
 
                 if (pfd.revents & posix.POLL.IN != 0) {
-                    self.handleClientData(fd, &read_buf) catch |err| {
-                        log.warn("client read error fd={d}: {}", .{ fd, err });
-                        self.disconnectClient(fd);
-                        _ = self.clients.orderedRemove(i);
+                    self.handleClientData(&self.clients.items[i], &read_buf) catch |err| {
+                        log.warn("client read error fd={d}: {}", .{ self.clients.items[i].fd, err });
+                        var client = self.clients.orderedRemove(i);
+                        self.disconnectClient(client.fd);
+                        client.deinit();
                     };
                 }
             }
@@ -236,7 +255,7 @@ pub fn run(self: *Daemon) !void {
 
 fn acceptClient(self: *Daemon) !void {
     const fd = try self.server.accept();
-    try self.clients.append(fd);
+    try self.clients.append(ClientState.init(self.alloc, fd));
     log.info("client connected fd={d}", .{fd});
 }
 
@@ -257,7 +276,9 @@ fn disconnectClient(self: *Daemon, fd: posix.fd_t) void {
 // Client message handling
 // -----------------------------------------------------------------------
 
-fn handleClientData(self: *Daemon, fd: posix.fd_t, buf: *[read_buf_size]u8) !void {
+fn handleClientData(self: *Daemon, client: *ClientState, buf: *[read_buf_size]u8) !void {
+    const fd = client.fd;
+
     const n = posix.read(fd, buf) catch |err| switch (err) {
         error.ConnectionResetByPeer, error.BrokenPipe => {
             // Treat as disconnect — the caller will clean up.
@@ -271,18 +292,30 @@ fn handleClientData(self: *Daemon, fd: posix.fd_t, buf: *[read_buf_size]u8) !voi
         return error.EndOfStream;
     }
 
-    // Parse the frame header from the received bytes.
-    var fbs = std.io.fixedBufferStream(buf[0..n]);
-    const reader = fbs.reader();
+    // Append new data to the client's persistent read buffer so that
+    // partial frames from a previous read are reassembled.
+    try client.read_buf.appendSlice(buf[0..n]);
 
-    while (true) {
+    // Parse as many complete frames as possible from the buffer.
+    var consumed: usize = 0;
+    const data = client.read_buf.items;
+
+    while (consumed < data.len) {
+        // Need at least a full header.
+        if (data.len - consumed < Protocol.header_size) break;
+
+        var fbs = std.io.fixedBufferStream(data[consumed..]);
+        const reader = fbs.reader();
+
         const hdr = Protocol.readFrameHeader(reader) catch break;
         const header = hdr orelse break;
 
-        // Read the payload.
-        if (header.payload_len > n - fbs.pos) break; // incomplete frame
-        const payload = buf[fbs.pos..][0..header.payload_len];
-        fbs.pos += header.payload_len;
+        // Check if the full payload is available.
+        const frame_total = Protocol.header_size + header.payload_len;
+        if (data.len - consumed < frame_total) break; // incomplete frame — wait for more data
+
+        const payload = data[consumed + Protocol.header_size ..][0..header.payload_len];
+        consumed += frame_total;
 
         // Dispatch based on message type.
         const msg_type = header.clientMsg() orelse {
@@ -294,6 +327,15 @@ fn handleClientData(self: *Daemon, fd: posix.fd_t, buf: *[read_buf_size]u8) !voi
             log.warn("error handling {s} from fd={d}: {}", .{ @tagName(msg_type), fd, err });
             self.sendError(fd, @tagName(msg_type), @errorName(err)) catch {};
         };
+    }
+
+    // Shift unconsumed bytes to the front of the buffer.
+    if (consumed == data.len) {
+        client.read_buf.clearRetainingCapacity();
+    } else if (consumed > 0) {
+        const remaining = data.len - consumed;
+        std.mem.copyForwards(u8, client.read_buf.items[0..remaining], data[consumed..]);
+        client.read_buf.shrinkRetainingCapacity(remaining);
     }
 }
 
