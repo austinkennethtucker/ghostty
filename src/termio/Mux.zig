@@ -294,26 +294,27 @@ pub fn queueWrite(
     data: []const u8,
     linefeed: bool,
 ) !void {
-    _ = alloc;
     _ = td;
     _ = linefeed; // Daemon receives raw bytes; line discipline is on the PTY.
     if (self.socket_fd == -1) return;
 
-    // Payload: terminal_id (u32) + raw input bytes.
+    // Build the entire frame in one contiguous buffer for atomic write.
+    // Three separate writes (header, terminal_id, data) would allow other
+    // threads to interleave on the shared socket, corrupting frames.
     const payload_len: u32 = 4 + @as(u32, @intCast(data.len));
+    const frame_len = Protocol.header_size + payload_len;
+    const buf = try alloc.alloc(u8, frame_len);
+    defer alloc.free(buf);
 
-    // Build the full frame: header (5 bytes) + payload.
-    var header_buf: [Protocol.header_size]u8 = undefined;
-    std.mem.writeInt(u32, header_buf[0..4], payload_len, .big);
-    header_buf[4] = @intFromEnum(Protocol.ClientMsg.input);
-
-    var tid_buf: [4]u8 = undefined;
-    std.mem.writeInt(u32, &tid_buf, self.terminal_id, .big);
+    // Header: payload_len (4 bytes big-endian) + msg_type (1 byte)
+    std.mem.writeInt(u32, buf[0..4], payload_len, .big);
+    buf[4] = @intFromEnum(Protocol.ClientMsg.input);
+    // Payload: terminal_id (4 bytes big-endian) + data
+    std.mem.writeInt(u32, buf[5..9], self.terminal_id, .big);
+    @memcpy(buf[9..][0..data.len], data);
 
     const file: std.fs.File = .{ .handle = self.socket_fd };
-    try file.writeAll(&header_buf);
-    try file.writeAll(&tid_buf);
-    try file.writeAll(data);
+    try file.writeAll(buf);
 }
 
 pub fn childExitedAbnormally(
@@ -405,20 +406,24 @@ fn readThreadMain(sock: posix.fd_t, io: *termio.Termio, quit_pipe: posix.fd_t) v
 // Helpers
 // -----------------------------------------------------------------------
 
-/// Build a frame in a stack buffer and write it to the socket fd in one go.
+/// Build a frame and write it to the socket fd atomically using writev.
+/// Two separate writeAll calls (header then payload) could be interleaved
+/// by concurrent writers on the same fd, corrupting the frame stream.
 fn sendFrame(fd: posix.fd_t, msg_type: u8, payload: []const u8) !void {
     if (payload.len > Protocol.max_payload_size) return error.PayloadTooLarge;
 
-    // Write the 5-byte header.
     var header_buf: [Protocol.header_size]u8 = undefined;
     std.mem.writeInt(u32, header_buf[0..4], @intCast(payload.len), .big);
     header_buf[4] = msg_type;
 
+    // Use writevAll to send header + payload in a single syscall (or a
+    // tight retry loop on partial writes), preventing interleaving.
     const file: std.fs.File = .{ .handle = fd };
-    try file.writeAll(&header_buf);
-    if (payload.len > 0) {
-        try file.writeAll(payload);
-    }
+    var iovecs = [2]posix.iovec_const{
+        .{ .base = &header_buf, .len = header_buf.len },
+        .{ .base = payload.ptr, .len = payload.len },
+    };
+    try file.writevAll(&iovecs);
 }
 
 /// Read and discard `n` bytes from the reader.
