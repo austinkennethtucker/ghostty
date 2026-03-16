@@ -392,7 +392,7 @@ fn highlightViLineNumbers(
 
     if (state.cols < 4) return;
 
-    const cursor_abs = top_abs + cursor_row + 1;
+    const cursor_abs = (top_abs +| cursor_row) +| 1;
     const max_number: usize = switch (data.mode) {
         .relative => @max(if (viewport_rows > 1) viewport_rows - 1 else 1, cursor_abs),
         .absolute => top_abs + viewport_rows,

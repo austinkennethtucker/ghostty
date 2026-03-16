@@ -1330,7 +1330,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     const cursor_row = state.vi_mode.cursor_row orelse break :gutter_offset 0;
                     const top_abs = state.vi_mode.viewport_top_abs_row orelse break :gutter_offset 0;
                     const viewport_rows = self.terminal_state.rows;
-                    const cursor_abs = top_abs + cursor_row + 1;
+                    const cursor_abs = (top_abs +| cursor_row) +| 1;
                     const max_number: usize = switch (state.vi_mode.line_numbers) {
                         .off => unreachable,
                         .relative => @max(if (viewport_rows > 1) viewport_rows - 1 else 1, cursor_abs),
