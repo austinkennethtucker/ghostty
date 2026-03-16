@@ -541,10 +541,10 @@ fn drawDigitPaths(
 
 // -- Gutter color helpers --
 
-/// Gutter background: 30% black overlay (darkened/recessed).
+/// Gutter background: fully opaque black to completely hide terminal text beneath.
 fn gutterBackground() z2d.Pixel {
     var rgba: z2d.pixel.RGBA = .fromPixel((z2d.pixel.RGB{ .r = 0, .g = 0, .b = 0 }).asPixel());
-    rgba.a = 204; // 80% of 255
+    rgba.a = 255; // fully opaque
     return rgba.multiply().asPixel();
 }
 
