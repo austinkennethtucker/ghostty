@@ -1659,8 +1659,33 @@ pub const Window = extern struct {
     ) callconv(.c) void {
         const priv = self.private();
         const page = priv.tab_view.getPage(tab.as(gtk.Widget));
-        // TODO: connect close page handler to tab to check for confirmation
-        priv.tab_view.closePage(page);
+
+        // If the tab says it doesn't need confirmation then we go ahead
+        // and close immediately.
+        if (!tab.getNeedsConfirmQuit()) {
+            priv.tab_view.closePage(page);
+            return;
+        }
+
+        // Show a confirmation dialog
+        const dialog: *CloseConfirmationDialog = .new(.tab);
+        _ = CloseConfirmationDialog.signals.@"close-request".connect(
+            dialog,
+            *adw.TabPage,
+            closeConfirmationCloseTab,
+            page,
+            .{},
+        );
+        _ = CloseConfirmationDialog.signals.cancel.connect(
+            dialog,
+            *adw.TabPage,
+            closeConfirmationCancelTab,
+            page,
+            .{},
+        );
+
+        // Show it
+        dialog.present(tab.as(gtk.Widget));
     }
 
     fn tabViewNPages(
