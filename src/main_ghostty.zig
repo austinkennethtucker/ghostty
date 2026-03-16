@@ -250,6 +250,37 @@ fn ensureDaemonRunning() !void {
     }
 
     // Daemon is not running — spawn it.
+    // Acquire a lock file to prevent two processes from racing to spawn
+    // competing daemon instances (e.g. two terminals launched at once).
+    const lock_path = try std.fmt.allocPrint(alloc, "{s}.lock", .{socket_path});
+    defer alloc.free(lock_path);
+
+    const lock_file = std.fs.createFileAbsolute(lock_path, .{
+        .truncate = false,
+    }) catch |err| {
+        std.log.warn("failed to create daemon lock file: {}", .{err});
+        // Proceed without lock — best effort.
+        return spawnDaemon(socket_path);
+    };
+    defer lock_file.close();
+
+    lock_file.lock(.exclusive) catch |err| {
+        std.log.warn("failed to acquire daemon lock: {}", .{err});
+        // Proceed without lock — best effort.
+        return spawnDaemon(socket_path);
+    };
+    defer lock_file.unlock();
+
+    // Re-check — another process may have started the daemon while we
+    // waited for the lock.
+    if (tryConnectSocket(socket_path)) return;
+
+    return spawnDaemon(socket_path);
+}
+
+/// Spawn the daemon as a detached background process and poll for up to
+/// 2 seconds until it starts accepting connections.
+fn spawnDaemon(socket_path: []const u8) !void {
     std.log.info("daemon not running, starting it...", .{});
 
     var exe_buf: [std.fs.max_path_bytes]u8 = undefined;
