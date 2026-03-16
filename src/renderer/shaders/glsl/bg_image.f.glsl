@@ -25,12 +25,16 @@ void main() {
 
     vec2 tex_size = textureSize(image, 0);
 
+    // If we need to repeat the texture, wrap the coordinates.
+    if (repeat != 0) {
+        tex_coord = mod(mod(tex_coord, tex_size) + tex_size, tex_size);
+    }
+
     vec4 rgba;
-    // If we are not repeating and we're out of bounds, we have no color,
+    // If we're out of bounds, we have no color,
     // otherwise we sample the texture for it.
-    // Repeating textures rely on the sampler wrap mode, so they can bypass bounds checking.
-    if (repeat == 0 && (any(lessThan(tex_coord, vec2(0.0))) ||
-            any(greaterThan(tex_coord, tex_size))))
+    if (any(lessThan(tex_coord, vec2(0.0))) ||
+            any(greaterThan(tex_coord, tex_size)))
     {
         rgba = vec4(0.0);
     } else {
