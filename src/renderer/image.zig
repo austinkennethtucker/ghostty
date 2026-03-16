@@ -219,6 +219,10 @@ pub const State = struct {
             -@as(i32, @intCast(overlay.gutter_offset_px / overlay.cell_size.width))
         else
             0;
+        if (comptime std.debug.runtime_safety)
+            std.debug.assert(overlay.gutter_offset_px == 0 or
+                overlay.cell_size.width == 0 or
+                overlay.gutter_offset_px % overlay.cell_size.width == 0);
 
         // Setup our placement
         self.overlay_placements.appendAssumeCapacity(.{
