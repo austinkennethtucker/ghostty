@@ -88,6 +88,12 @@ next_terminal_id: u32 = 1,
 /// Whether the main loop should keep running.
 running: bool = true,
 
+/// Pre-allocated buffer for sendOutput (avoids per-read heap allocation).
+output_payload_buf: [4 + read_buf_size]u8 = undefined,
+
+/// Reusable pollfds array, resized only when fd count changes.
+pollfds_buf: std.ArrayList(posix.pollfd),
+
 /// Allocator used by the daemon and all owned structures.
 alloc: Allocator,
 
@@ -108,6 +114,7 @@ pub fn init(alloc: Allocator) !Daemon {
         .pty_terminals = std.AutoHashMap(posix.fd_t, *Terminal).init(alloc),
         .id_terminals = std.AutoHashMap(u32, *Terminal).init(alloc),
         .id_sessions = std.AutoHashMap(u32, []const u8).init(alloc),
+        .pollfds_buf = std.ArrayList(posix.pollfd).init(alloc),
         .alloc = alloc,
     };
 }
@@ -132,6 +139,7 @@ pub fn deinit(self: *Daemon) void {
     self.pty_terminals.deinit();
     self.id_terminals.deinit();
     self.id_sessions.deinit();
+    self.pollfds_buf.deinit();
 
     self.server.deinit(self.alloc);
 }
@@ -155,30 +163,28 @@ pub fn run(self: *Daemon) !void {
     while (self.running) {
         // ---------------------------------------------------------
         // Build the pollfds array: [listen_fd, ...client fds, ...pty fds]
+        // Uses a reusable ArrayList to avoid per-iteration heap alloc.
         // ---------------------------------------------------------
-        const n_fds = 1 + self.clients.items.len + self.pty_terminals.count();
-        const pollfds = try self.alloc.alloc(posix.pollfd, n_fds);
-        defer self.alloc.free(pollfds);
+        self.pollfds_buf.clearRetainingCapacity();
 
         // Slot 0: listen socket
-        pollfds[0] = .{ .fd = self.server.getFd(), .events = posix.POLL.IN, .revents = undefined };
+        try self.pollfds_buf.append(.{ .fd = self.server.getFd(), .events = posix.POLL.IN, .revents = undefined });
 
         // Client fds
         const client_base: usize = 1;
-        for (self.clients.items, 0..) |client, i| {
-            pollfds[client_base + i] = .{ .fd = client.fd, .events = posix.POLL.IN, .revents = undefined };
+        for (self.clients.items) |client| {
+            try self.pollfds_buf.append(.{ .fd = client.fd, .events = posix.POLL.IN, .revents = undefined });
         }
 
         // PTY fds
         const pty_base: usize = client_base + self.clients.items.len;
         {
             var pty_it = self.pty_terminals.keyIterator();
-            var idx: usize = 0;
             while (pty_it.next()) |key_ptr| {
-                pollfds[pty_base + idx] = .{ .fd = key_ptr.*, .events = posix.POLL.IN, .revents = undefined };
-                idx += 1;
+                try self.pollfds_buf.append(.{ .fd = key_ptr.*, .events = posix.POLL.IN, .revents = undefined });
             }
         }
+        const pollfds = self.pollfds_buf.items;
 
         // ---------------------------------------------------------
         // Poll (block until something happens)
@@ -823,19 +829,14 @@ fn sendTerminalExited(self: *Daemon, fd: posix.fd_t, terminal_id: u32, exit_code
 }
 
 fn sendOutput(self: *Daemon, fd: posix.fd_t, terminal_id: u32, data: []const u8) !void {
-    // Build payload: terminal_id (4 bytes) + raw data
+    // Build payload in pre-allocated buffer (avoids per-read heap allocation).
     const payload_len = 4 + data.len;
-    if (payload_len > Protocol.max_payload_size) return error.PayloadTooLarge;
+    if (payload_len > self.output_payload_buf.len) return error.PayloadTooLarge;
 
-    const payload = try self.alloc.alloc(u8, payload_len);
-    defer self.alloc.free(payload);
+    std.mem.writeInt(u32, self.output_payload_buf[0..4], terminal_id, .big);
+    @memcpy(self.output_payload_buf[4..][0..data.len], data);
 
-    // Write terminal id in big-endian.
-    const id_bytes = std.mem.toBytes(std.mem.nativeToBig(u32, terminal_id));
-    @memcpy(payload[0..4], &id_bytes);
-    @memcpy(payload[4..][0..data.len], data);
-
-    try self.sendFrame(fd, @intFromEnum(Protocol.ServerMsg.output), payload);
+    try self.sendFrame(fd, @intFromEnum(Protocol.ServerMsg.output), self.output_payload_buf[0..payload_len]);
 }
 
 fn sendScreenSnapshot(self: *Daemon, fd: posix.fd_t, terminal: *const Terminal) !void {
