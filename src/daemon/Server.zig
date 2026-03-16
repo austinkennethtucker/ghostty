@@ -72,8 +72,9 @@ pub fn init(alloc: Allocator) !Server {
     // Remove stale socket file (harmless if it doesn't exist).
     posix.unlink(path) catch {};
 
-    // Create the UNIX-domain stream socket.
-    const fd = try posix.socket(posix.AF.UNIX, posix.SOCK.STREAM, 0);
+    // Create the UNIX-domain stream socket with CLOEXEC so forked PTY
+    // children don't inherit the listen fd.
+    const fd = try posix.socket(posix.AF.UNIX, posix.SOCK.STREAM | posix.SOCK.CLOEXEC, 0);
     errdefer posix.close(fd);
 
     // Build sockaddr_un and bind.
@@ -102,9 +103,10 @@ pub fn deinit(self: *Server, alloc: Allocator) void {
     alloc.free(self.socket_path);
 }
 
-/// Accept a single incoming client connection.
+/// Accept a single incoming client connection. CLOEXEC prevents forked
+/// PTY children from inheriting the accepted client fd.
 pub fn accept(self: *Server) !posix.fd_t {
-    return try posix.accept(self.listen_fd, null, null, 0);
+    return try posix.accept(self.listen_fd, null, null, posix.SOCK.CLOEXEC);
 }
 
 /// Return the listening fd for use in a poll set.

@@ -567,6 +567,17 @@ fn spawnPty(
         if (slave_fd > posix.STDERR_FILENO) posix.close(slave_fd);
         posix.close(master_fd);
 
+        // Close all inherited file descriptors (daemon sockets, other
+        // PTYs, etc.) so the child doesn't leak the daemon's internal
+        // fds. FDs with CLOEXEC would be closed by exec, but we close
+        // them explicitly in case any were missed.
+        {
+            var fd_i: posix.fd_t = posix.STDERR_FILENO + 1;
+            while (fd_i < 1024) : (fd_i += 1) {
+                _ = std.c.close(fd_i);
+            }
+        }
+
         // Change working directory if specified.
         if (cwd.len > 0) {
             posix.chdir(cwd) catch {};
