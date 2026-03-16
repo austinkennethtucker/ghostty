@@ -392,6 +392,10 @@ fn handleClientMessage(
                 const terminal: *Terminal = tptr.*;
                 try self.sendScreenSnapshot(client_fd, terminal);
             }
+
+            // Send session_info as end-of-snapshots marker so the client
+            // knows to stop reading synchronously and start the read thread.
+            try self.sendSessionInfo(client_fd, session);
         },
 
         .detach_session => {
