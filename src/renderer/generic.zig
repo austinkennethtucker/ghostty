@@ -1291,6 +1291,26 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                                 }) catch {};
                             }
                         }
+                        // Line numbers — only if enabled and cursor is visible
+                        if (state.vi_mode.line_numbers != .off) {
+                            if (state.vi_mode.cursor_row) |cursor_row| {
+                                if (state.vi_mode.viewport_top_abs_row) |top_abs| {
+                                    feature_list.append(arena_alloc, .{
+                                        .vi_line_numbers = .{
+                                            .mode = switch (state.vi_mode.line_numbers) {
+                                                .off => unreachable,
+                                                .relative => .relative,
+                                                .absolute => .absolute,
+                                            },
+                                            .cursor_row = cursor_row,
+                                            .viewport_top_abs_row = top_abs,
+                                            .viewport_rows = self.terminal_state.rows,
+                                            .has_mode_indicator = state.vi_mode.mode_text != null,
+                                        },
+                                    }) catch {};
+                                }
+                            }
+                        }
                     }
 
                     break :overlay feature_list.items;

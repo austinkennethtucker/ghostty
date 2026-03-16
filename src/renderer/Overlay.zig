@@ -73,6 +73,13 @@ pub const Feature = union(enum) {
     semantic_prompts,
     vi_cursor: struct { row: usize, col: usize },
     vi_mode_indicator: []const u8,
+    vi_line_numbers: struct {
+        mode: enum { relative, absolute },
+        cursor_row: usize,
+        viewport_top_abs_row: usize,
+        viewport_rows: usize,
+        has_mode_indicator: bool,
+    },
 };
 
 pub const InitError = Allocator.Error || error{
@@ -149,6 +156,7 @@ pub fn applyFeatures(
         ),
         .vi_cursor => |pos| self.highlightViCursor(alloc, pos.row, pos.col),
         .vi_mode_indicator => |text| self.highlightViModeIndicator(alloc, state, text),
+        .vi_line_numbers => |data| self.highlightViLineNumbers(alloc, state, data),
     };
 }
 
@@ -360,6 +368,20 @@ fn highlightViModeIndicator(
         const y: i32 = px_y +| @as(i32, std.math.cast(i32, dy) orelse continue);
         self.surface.paintStride(px_x, y, px_width, fill_color);
     }
+}
+
+/// Draw the line number gutter for vi mode.
+fn highlightViLineNumbers(
+    self: *Overlay,
+    alloc: Allocator,
+    state: *const terminal.RenderState,
+    data: anytype,
+) void {
+    _ = self;
+    _ = alloc;
+    _ = state;
+    _ = data;
+    // TODO: implement in next task
 }
 
 /// Blue fill for visual mode indicator (distinct from normal mode amber).
