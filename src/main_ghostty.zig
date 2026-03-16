@@ -10,6 +10,7 @@ const macos = @import("macos");
 const cli = @import("cli.zig");
 const renderer = @import("renderer.zig");
 const apprt = @import("apprt.zig");
+const internal_os = @import("os/main.zig");
 
 const App = @import("App.zig");
 const Ghostty = @import("main_c.zig").Ghostty;
@@ -41,6 +42,40 @@ pub fn main() !MainReturn {
                 posix.exit(1);
             };
             posix.exit(0);
+        }
+    }
+
+    // Check for --session <name> flag. When present, ensure the daemon is
+    // running and set the TRIDENT_SESSION env var so that Surface.init
+    // uses the mux backend instead of exec.
+    session: for (std.os.argv[1..], 1..) |arg_ptr, i| {
+        const arg = std.mem.span(arg_ptr);
+        if (std.mem.eql(u8, arg, "--session")) {
+            // Next argument is the session name.
+            if (i + 1 >= std.os.argv.len) {
+                var buffer: [1024]u8 = undefined;
+                var stderr_writer = std.fs.File.stderr().writer(&buffer);
+                const stderr_w = &stderr_writer.interface;
+                stderr_w.print("Error: --session requires a session name argument\n", .{}) catch {};
+                stderr_w.flush() catch {};
+                posix.exit(1);
+            }
+            const session_name = std.mem.span(std.os.argv[i + 1]);
+
+            // Ensure the daemon is running.
+            ensureDaemonRunning() catch |err| {
+                std.log.err("failed to ensure daemon is running: {}", .{err});
+                posix.exit(1);
+            };
+
+            // Set the env var so Surface.init can detect session mode.
+            const rc = internal_os.setenv("TRIDENT_SESSION", session_name);
+            if (rc != 0) {
+                std.log.err("failed to set TRIDENT_SESSION env var", .{});
+                posix.exit(1);
+            }
+
+            break :session;
         }
     }
 
@@ -197,6 +232,94 @@ pub const std_options: std.Options = .{
 
     .logFn = logFn,
 };
+
+/// Check if the daemon is running by trying to connect to its socket.
+/// If not running, spawn it as a background process and wait for it to
+/// start listening (up to 2 seconds).
+fn ensureDaemonRunning() !void {
+    const alloc = std.heap.c_allocator;
+    const daemon_mod = @import("daemon.zig");
+
+    const socket_path = try daemon_mod.Server.socketPath(alloc);
+    defer alloc.free(socket_path);
+
+    // Try to connect to the existing socket.
+    if (tryConnectSocket(socket_path)) {
+        // Daemon is already running.
+        return;
+    }
+
+    // Daemon is not running — spawn it.
+    std.log.info("daemon not running, starting it...", .{});
+
+    var exe_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const exe_path = std.fs.selfExePath(&exe_buf) catch |err| {
+        std.log.err("failed to get self exe path: {}", .{err});
+        return err;
+    };
+
+    // We need a null-terminated copy for the argv.
+    var path_buf: [std.fs.max_path_bytes + 1]u8 = undefined;
+    @memcpy(path_buf[0..exe_path.len], exe_path);
+    path_buf[exe_path.len] = 0;
+    const exe_path_z: [*:0]const u8 = path_buf[0..exe_path.len :0];
+
+    const daemon_flag: [*:0]const u8 = "--daemon";
+    const argv_list: [3:null]?[*:0]const u8 = .{ exe_path_z, daemon_flag, null };
+
+    const pid = try posix.fork();
+    if (pid == 0) {
+        // Child process: become session leader, close stdio, exec daemon.
+        _ = std.c.setsid();
+
+        // Close stdin/stdout/stderr so the daemon is fully detached.
+        posix.close(0);
+        posix.close(1);
+        posix.close(2);
+
+        // Redirect to /dev/null.
+        const devnull = posix.open("/dev/null", .{ .ACCMODE = .RDWR }, 0) catch posix.exit(1);
+        if (devnull != 0) {
+            posix.dup2(devnull, 0) catch posix.exit(1);
+        }
+        posix.dup2(devnull, 1) catch posix.exit(1);
+        posix.dup2(devnull, 2) catch posix.exit(1);
+        if (devnull > 2) posix.close(devnull);
+
+        const err = posix.execvpeZ(exe_path_z, @ptrCast(&argv_list), std.c.environ);
+        _ = err;
+        posix.exit(1);
+    }
+
+    // Parent: wait for the daemon socket to appear (max 2 seconds).
+    const max_polls = 40; // 40 * 50ms = 2000ms
+    for (0..max_polls) |_| {
+        std.time.sleep(50 * std.time.ns_per_ms);
+        if (tryConnectSocket(socket_path)) {
+            std.log.info("daemon started successfully", .{});
+            return;
+        }
+    }
+
+    std.log.err("timed out waiting for daemon to start", .{});
+    return error.DaemonStartTimeout;
+}
+
+/// Try to connect to a Unix domain socket at the given path.
+/// Returns true if the connection succeeded (daemon is listening).
+fn tryConnectSocket(socket_path: []const u8) bool {
+    const sock = posix.socket(posix.AF.UNIX, posix.SOCK.STREAM, 0) catch return false;
+    defer posix.close(sock);
+
+    var addr: posix.sockaddr.un = undefined;
+    addr.family = posix.AF.UNIX;
+    @memset(&addr.path, 0);
+    if (socket_path.len >= addr.path.len) return false;
+    @memcpy(addr.path[0..socket_path.len], socket_path);
+
+    posix.connect(sock, @ptrCast(&addr), @sizeOf(posix.sockaddr.un)) catch return false;
+    return true;
+}
 
 test {
     _ = @import("pty.zig");
