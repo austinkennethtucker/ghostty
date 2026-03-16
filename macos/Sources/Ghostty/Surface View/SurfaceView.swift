@@ -723,6 +723,9 @@ extension Ghostty {
             // Set context
             config.context = context
 
+            // Set background opacity override (negative means inherit global)
+            config.background_opacity = backgroundOpacity ?? -1
+
             // Use withCString to ensure strings remain valid for the duration of the closure
             return try workingDirectory.withCString { cWorkingDir in
                 config.working_directory = cWorkingDir
