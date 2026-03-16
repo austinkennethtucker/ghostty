@@ -1269,6 +1269,24 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     };
                 };
 
+                // Compute gutter pixel offset for vi-mode line numbers.
+                // When active, the grid will be shifted right by this amount.
+                const gutter_width_cells: usize, const gutter_offset_px: u32 = gutter_offset: {
+                    if (!state.vi_mode.active or state.vi_mode.line_numbers == .off)
+                        break :gutter_offset .{ 0, 0 };
+                    const cursor_row = state.vi_mode.cursor_row orelse break :gutter_offset .{ 0, 0 };
+                    const top_abs = state.vi_mode.viewport_top_abs_row orelse break :gutter_offset .{ 0, 0 };
+                    const viewport_rows = self.terminal_state.rows;
+                    const cursor_abs = (top_abs +| cursor_row) +| 1;
+                    const max_number: usize = switch (state.vi_mode.line_numbers) {
+                        .off => unreachable,
+                        .relative => @max(if (viewport_rows > 1) viewport_rows - 1 else 1, cursor_abs),
+                        .absolute => top_abs + viewport_rows,
+                    };
+                    const gw = Overlay.gutterWidth(max_number);
+                    break :gutter_offset .{ gw, @as(u32, @intCast(gw * self.grid_metrics.cell_width)) };
+                };
+
                 const overlay_features: []const Overlay.Feature = overlay: {
                     // Collect features from inspector and vi mode.
                     var feature_list: std.ArrayListUnmanaged(Overlay.Feature) = .empty;
@@ -1305,6 +1323,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                                             .viewport_top_abs_row = top_abs,
                                             .viewport_rows = self.terminal_state.rows,
                                             .has_mode_indicator = state.vi_mode.mode_text != null,
+                                            .gutter_width_cells = gutter_width_cells,
                                         },
                                     }) catch {};
                                 }
@@ -1320,23 +1339,6 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     }
 
                     break :overlay feature_list.items;
-                };
-
-                // Compute gutter pixel offset for vi-mode line numbers.
-                // When active, the grid will be shifted right by this amount.
-                const gutter_offset_px: u32 = gutter_offset: {
-                    if (!state.vi_mode.active or state.vi_mode.line_numbers == .off)
-                        break :gutter_offset 0;
-                    const cursor_row = state.vi_mode.cursor_row orelse break :gutter_offset 0;
-                    const top_abs = state.vi_mode.viewport_top_abs_row orelse break :gutter_offset 0;
-                    const viewport_rows = self.terminal_state.rows;
-                    const cursor_abs = (top_abs +| cursor_row) +| 1;
-                    const max_number: usize = switch (state.vi_mode.line_numbers) {
-                        .off => unreachable,
-                        .relative => @max(if (viewport_rows > 1) viewport_rows - 1 else 1, cursor_abs),
-                        .absolute => top_abs + viewport_rows,
-                    };
-                    break :gutter_offset @as(u32, @intCast(Overlay.gutterWidth(max_number) * self.grid_metrics.cell_width));
                 };
 
                 break :critical .{

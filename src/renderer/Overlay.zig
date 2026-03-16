@@ -84,6 +84,7 @@ pub const Feature = union(enum) {
         viewport_top_abs_row: usize,
         viewport_rows: usize,
         has_mode_indicator: bool,
+        gutter_width_cells: usize,
     },
 };
 
@@ -393,11 +394,7 @@ fn highlightViLineNumbers(
     if (state.cols < 4) return;
 
     const cursor_abs = (top_abs +| cursor_row) +| 1;
-    const max_number: usize = switch (data.mode) {
-        .relative => @max(if (viewport_rows > 1) viewport_rows - 1 else 1, cursor_abs),
-        .absolute => top_abs + viewport_rows,
-    };
-    const gw = gutterWidth(max_number);
+    const gw = data.gutter_width_cells;
 
     // Skip gutter background on bottom row if mode indicator active
     const indicator_row: ?usize = if (data.has_mode_indicator and state.rows > 0) state.rows - 1 else null;
