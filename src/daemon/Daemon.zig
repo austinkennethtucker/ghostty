@@ -130,6 +130,10 @@ pub fn stop(self: *Daemon) void {
 pub fn run(self: *Daemon) !void {
     var read_buf: [read_buf_size]u8 = undefined;
 
+    // Ignore SIGPIPE so that a client disconnecting mid-write doesn't
+    // kill the entire daemon process with a default signal death.
+    _ = std.c.signal(std.c.SIG.PIPE, std.c.SIG.IGN);
+
     while (self.running) {
         // ---------------------------------------------------------
         // Build the pollfds array: [listen_fd, ...client fds, ...pty fds]
