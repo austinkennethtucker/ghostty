@@ -92,6 +92,8 @@ class PopupController: BaseTerminalController {
         if let opacity = config.opacity, opacity < 1 {
             window.isOpaque = false
             window.backgroundColor = .white.withAlphaComponent(0.001)
+        } else {
+            window.isOpaque = true
         }
 
         // Observe focus loss for autohide behavior.

@@ -450,7 +450,7 @@ typedef struct {
   const char* initial_input;
   bool wait_after_command;
   ghostty_surface_context_e context;
-  double background_opacity;
+  double background_opacity; // negative = inherit global
 } ghostty_surface_config_s;
 
 typedef struct {
