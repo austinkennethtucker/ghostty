@@ -24,6 +24,26 @@ const MainReturn = switch (build_config.artifact) {
 };
 
 pub fn main() !MainReturn {
+    // Check for --daemon flag BEFORE any GUI/AppKit initialization.
+    // The daemon is a pure POSIX process that must not touch AppKit.
+    for (std.os.argv[1..]) |arg_ptr| {
+        const arg = std.mem.span(arg_ptr);
+        if (std.mem.eql(u8, arg, "--daemon")) {
+            const daemon_mod = @import("daemon.zig");
+            const alloc = std.heap.c_allocator;
+            var daemon = daemon_mod.Daemon.init(alloc) catch |err| {
+                std.log.err("daemon init failed: {}", .{err});
+                posix.exit(1);
+            };
+            defer daemon.deinit();
+            daemon.run() catch |err| {
+                std.log.err("daemon exited with error: {}", .{err});
+                posix.exit(1);
+            };
+            posix.exit(0);
+        }
+    }
+
     // We first start by initializing our global state. This will setup
     // process-level state we need to run the terminal. The reason we use
     // a global is because the C API needs to be able to access this state;

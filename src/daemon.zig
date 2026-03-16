@@ -7,3 +7,5 @@
 pub const Protocol = @import("daemon/Protocol.zig");
 pub const Session = @import("daemon/Session.zig");
 pub const Terminal = @import("daemon/Terminal.zig");
+pub const Server = @import("daemon/Server.zig");
+pub const Daemon = @import("daemon/Daemon.zig");
