@@ -393,9 +393,12 @@ fn highlightViLineNumbers(
     // Skip gutter background on bottom row if mode indicator active
     const indicator_row: ?usize = if (data.has_mode_indicator and state.rows > 0) state.rows - 1 else null;
 
-    // Draw gutter background (30% black) using paintStride (direct pixel replacement)
+    // Draw gutter background + separator in one pass (paintStride = direct pixel replacement)
     const bg_color = gutterBackground();
+    const sep_color = gutterSeparator();
     const gutter_px_width: usize = gw * self.cell_size.width;
+    const sep_x: i32 = std.math.cast(i32, gutter_px_width -| 1) orelse return;
+
     for (0..viewport_rows) |row| {
         if (indicator_row) |ir| {
             if (row == ir) continue;
@@ -404,48 +407,42 @@ fn highlightViLineNumbers(
         for (0..self.cell_size.height) |dy| {
             const y: i32 = py +| @as(i32, std.math.cast(i32, dy) orelse continue);
             self.surface.paintStride(0, y, gutter_px_width, bg_color);
-        }
-    }
-
-    // Draw separator line (1px wide at right edge of gutter)
-    const sep_color = gutterSeparator();
-    const sep_x: i32 = std.math.cast(i32, gutter_px_width -| 1) orelse return;
-    for (0..viewport_rows) |row| {
-        // Skip indicator row to preserve mode indicator visual
-        if (indicator_row) |ir| {
-            if (row == ir) continue;
-        }
-        const py: i32 = std.math.cast(i32, row * self.cell_size.height) orelse continue;
-        for (0..self.cell_size.height) |dy| {
-            const y: i32 = py +| @as(i32, std.math.cast(i32, dy) orelse continue);
             self.surface.paintStride(sep_x, y, 1, sep_color);
         }
     }
 
-    // Draw line numbers
+    // Draw line numbers — batch strokes by color (2 strokes instead of N)
     var ctx: z2d.Context = .init(alloc, &self.surface);
     defer ctx.deinit();
     ctx.setAntiAliasingMode(.none);
     ctx.setHairline(false);
+    ctx.setLineWidth(1.0);
 
     const bright_color = gutterBrightDigit();
     const dim_color = gutterDimDigit();
 
+    // Pass 1: dim digits (all non-cursor rows)
+    ctx.setSourceToPixel(dim_color);
     for (0..viewport_rows) |row| {
-        const number: usize = if (row == cursor_row)
-            top_abs + row + 1
-        else switch (data.mode) {
+        if (row == cursor_row) continue;
+        const number: usize = switch (data.mode) {
             .relative => if (row > cursor_row) row - cursor_row else cursor_row - row,
             .absolute => top_abs + row + 1,
         };
-
-        const color = if (row == cursor_row) bright_color else dim_color;
-
-        self.drawDigitString(&ctx, number, row, gw, color) catch |err| {
+        self.drawDigitPaths(&ctx, number, row, gw) catch |err| {
             log.warn("Error drawing line number: {}", .{err});
             return;
         };
     }
+    ctx.stroke() catch {};
+
+    // Pass 2: bright digit (cursor row only)
+    ctx.setSourceToPixel(bright_color);
+    self.drawDigitPaths(&ctx, cursor_abs, cursor_row, gw) catch |err| {
+        log.warn("Error drawing cursor line number: {}", .{err});
+        return;
+    };
+    ctx.stroke() catch {};
 }
 
 // -- Digit drawing (7-segment style) --
@@ -486,7 +483,7 @@ fn drawDigit(
     bh: f64,
     digit: u8,
 ) !void {
-    const mx = bw * 0.15;
+    const mx = bw * 0.20;
     const my = bh * 0.10;
     const x0 = bx + mx;
     const x1 = bx + bw - mx;
@@ -505,15 +502,14 @@ fn drawDigit(
     if (segs.bottom) { try ctx.moveTo(x0, y1); try ctx.lineTo(x1, y1); }
 }
 
-/// Draw a number as right-aligned digit string in the gutter area.
-/// This is the swappable interface for digit rendering.
-fn drawDigitString(
+/// Accumulate digit path commands for a right-aligned number in the gutter.
+/// Does NOT stroke — caller batches strokes by color for performance.
+fn drawDigitPaths(
     self: *Overlay,
     ctx: *z2d.Context,
     number: usize,
     row: usize,
     gutter_width_cells: usize,
-    color: z2d.Pixel,
 ) !void {
     var digits: [20]u8 = undefined;
     var n = number;
@@ -535,17 +531,12 @@ fn drawDigitString(
     const cell_h: f64 = @floatFromInt(self.cell_size.height);
     const row_y: f64 = @floatFromInt(row * self.cell_size.height);
 
-    ctx.setSourceToPixel(color);
-    ctx.setLineWidth(1.5);
-
     var i: usize = 0;
     while (i < digit_count) : (i += 1) {
         const col = num_cols - 1 - i;
         const col_x: f64 = @floatFromInt(col * self.cell_size.width);
         try drawDigit(ctx, col_x, row_y, cell_w, cell_h, digits[i]);
     }
-
-    try ctx.stroke();
 }
 
 // -- Gutter color helpers --
