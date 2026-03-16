@@ -29,13 +29,33 @@ Add tmux-style local session persistence to Trident. A background daemon owns PT
 The daemon is a headless Trident process (`trident --daemon`) that:
 
 - Starts automatically on first `trident --session` launch (or manually via `trident daemon-start`)
-- Listens on a Unix domain socket at `$XDG_RUNTIME_DIR/trident/daemon.sock` (fallback: `/tmp/trident-$UID/daemon.sock`)
+- Listens on a Unix domain socket (platform-specific path, see below)
 - Owns all PTY file descriptors — spawns shells/commands, reads output, accepts input
 - Organizes PTYs into named sessions
 - Buffers scrollback per-PTY (configurable, defaults to terminal scrollback setting)
 - Stays alive when all GUI clients disconnect
 - Shuts down via `trident daemon-stop` or signal
-- Pidfile at `$XDG_RUNTIME_DIR/trident/daemon.pid` for locking and single-instance enforcement
+- Pidfile alongside socket for locking and single-instance enforcement
+
+### Socket & Pidfile Paths
+
+| Platform | Socket | Pidfile |
+|----------|--------|---------|
+| macOS | `$TMPDIR/trident-daemon.sock` (`$TMPDIR` is per-user, set by launchd, e.g. `/var/folders/.../T/`) | `$TMPDIR/trident-daemon.pid` |
+| Linux | `$XDG_RUNTIME_DIR/trident/daemon.sock` (fallback: `/tmp/trident-$UID/daemon.sock`) | Same directory, `daemon.pid` |
+
+On macOS, `$TMPDIR` is preferred over `/tmp` because launchd sets it to a per-user private directory with correct permissions. On Linux, `$XDG_RUNTIME_DIR` (typically `/run/user/$UID/`) is the standard location for user runtime sockets.
+
+### Daemon Startup (Daemonization)
+
+When auto-starting the daemon (from `trident --session`), the client must NOT use `fork()` — on macOS, forking from a process that has initialized Cocoa/Metal frameworks is unsafe (Apple restriction). Instead:
+
+1. Use `posix_spawn()` to launch `trident --daemon` as a new process
+2. The daemon process calls `setsid()` to become a session leader (detaches from controlling terminal)
+3. Redirects stdout/stderr to `$TMPDIR/trident-daemon.log` (macOS) or `$XDG_RUNTIME_DIR/trident/daemon.log` (Linux)
+4. Closes inherited file descriptors (except the socket it creates)
+5. Writes pidfile after socket is listening
+6. Client polls for pidfile + socket existence (max ~2s timeout)
 
 ### Session Model
 
@@ -50,9 +70,20 @@ The daemon does NOT do terminal emulation or rendering. It is a PTY multiplexer 
 
 ### Scrollback Buffer
 
-The daemon maintains a circular buffer of recent PTY output per terminal (default: same as `scrollback-limit` config, e.g. 10,000 lines worth of bytes). On client attach, this buffer is sent as a `scrollback_sync` message so the client's terminal emulator can reconstruct screen state.
+The daemon maintains a circular buffer of recent PTY output per terminal. The buffer size defaults to the `scrollback-limit` config value (default: 10,000,000 bytes / ~10 MB). The unit is **bytes**, matching the existing config.
 
-The buffer stores raw bytes (pre-terminal-emulation). The client's terminal emulator processes them identically to live output — no special parsing needed.
+On client attach, the daemon sends the buffer contents as `screen_snapshot` messages.
+
+### Attach Screen Reconstruction
+
+Raw byte replay alone cannot perfectly reconstruct terminal screen state — the buffer may start mid-escape-sequence, and terminal modes (alternate screen, scroll region, cursor position) are unknown. The daemon addresses this with a two-phase sync:
+
+1. **Screen snapshot:** The daemon maintains a minimal terminal state tracker per PTY — just enough to capture the current screen contents (rows × cols of cell data) and cursor position. This is sent first as a `screen_snapshot` message. The client renders this as the initial screen.
+2. **Live output:** After the snapshot, the client receives live `output` messages and processes them normally through its terminal emulator.
+
+The screen snapshot is lightweight — the daemon does NOT run a full terminal emulator. It tracks only: current screen grid (for the visible area), cursor position, and whether alternate screen is active. This is ~100 KB per terminal at typical sizes (80×24 × ~50 bytes/cell).
+
+Scrollback history from before the attach point is NOT available to the client (it was processed by a previous client session or never displayed). This is the same limitation tmux has — `tmux attach` shows the current screen, not deep history.
 
 ## 2. Wire Protocol
 
@@ -89,15 +120,15 @@ Maximum frame size: 16 MiB (sanity limit, mostly for scrollback sync).
 | 0x83 | `terminal_created` | terminal id (u32), session name |
 | 0x84 | `terminal_exited` | terminal id (u32), exit code (i32) |
 | 0x85 | `error` | error code (u16), message (len-prefixed string) |
-| 0x86 | `scrollback_sync` | terminal id (u32), byte payload (buffered output) |
+| 0x86 | `screen_snapshot` | terminal id (u32), cols (u16), rows (u16), cursor_x (u16), cursor_y (u16), cell data (rows×cols encoded cells) |
 | 0x87 | `session_layout` | session name, JSON-encoded layout tree |
 
 ### Design Notes
 
 - Binary format avoids escaping PTY output bytes (which can contain any byte value)
 - Terminal id is daemon-assigned, unique across all sessions for the daemon's lifetime
-- Multiple clients can connect simultaneously (future: session sharing), but v3 scope is single-client-per-session
 - The socket is `SOCK_STREAM` (TCP-like reliable ordered delivery over Unix domain)
+- **Single-client-per-session (v3):** The daemon tracks which client connection (socket fd) owns each session. `attach_session` fails if another client is already attached. `detach_session` or client socket close (including abnormal disconnect) releases ownership. The daemon detects client disconnects via socket EOF/error on the connection fd — no heartbeat needed.
 
 ## 3. Mux Client Integration
 
@@ -114,7 +145,7 @@ Responsibilities:
 - Maintains a single socket connection to the daemon (shared across all surfaces in a session window)
 - Demultiplexes incoming `output` frames by terminal id to the correct Termio instance
 - Sends `input`, `resize`, `close_terminal` on behalf of surfaces
-- Handles `scrollback_sync` on attach (feeds buffered output to terminal emulator as if it were live)
+- Handles `screen_snapshot` on attach (feeds buffered output to terminal emulator as if it were live)
 - Reconnection logic: if daemon connection drops, surfaces show a "disconnected" overlay; auto-reconnects when daemon is available
 
 ### Surface Creation in Session Mode
@@ -136,6 +167,15 @@ A `--session <name>` CLI flag controls which mode a window uses. No config file 
 
 Termio checks at init: if session mode is active, use MuxClient. Otherwise, spawn PTY directly (today's behavior, unchanged).
 
+### Backend Integration Notes
+
+The existing Termio backend system (`src/termio/backend.zig`) defines `Kind = enum { exec }` with a `Backend` union and per-kind `ThreadData`. Adding a `mux` variant is more than a simple swap — key differences from `exec`:
+
+- **No child process watcher:** `exec` uses `xev.Process` to detect PTY exit. The mux backend receives `terminal_exited` messages over the wire instead.
+- **No termios polling:** `exec` runs a timer to poll termios state (`Exec.termiosTimer`). Dead code for mux — the daemon owns the PTY fd.
+- **Different read model:** `exec` spawns a dedicated `ReadThread` that blocks on the PTY fd. The mux backend integrates with the IO thread's `xev.Loop` to read from the daemon socket (non-blocking, event-driven).
+- **Shared socket:** Multiple mux-backed Termio instances share one socket connection. The MuxClient demultiplexes by terminal id. This is fundamentally different from `exec` where each Termio has its own PTY fd.
+
 ## 4. CLI Commands & Launch Modes
 
 | Command | Behavior |
@@ -153,8 +193,8 @@ Termio checks at init: if session mode is active, use MuxClient. Otherwise, spaw
 
 When `trident --session work` runs and no daemon is listening:
 
-1. Fork a daemon process (`trident --daemon`)
-2. Wait for the socket to appear (poll with short timeout, max ~2s)
+1. Launch daemon via `posix_spawn()` (`trident --daemon`) — see Daemonization section above
+2. Poll for pidfile + socket (max ~2s timeout)
 3. Connect and proceed
 
 The user never needs to manually manage the daemon.
@@ -173,7 +213,7 @@ Two levels of persistence:
 
 ### Level 1: Daemon Alive (Primary Feature)
 
-Processes keep running in the daemon indefinitely. Scrollback preserved in daemon's memory buffer. `trident attach work` reconnects instantly with `scrollback_sync` catch-up.
+Processes keep running in the daemon indefinitely. Scrollback preserved in daemon's memory buffer. `trident attach work` reconnects instantly with `screen_snapshot` catch-up.
 
 This is the core value — detach Friday afternoon, reattach Monday morning. Claude is still running.
 
@@ -251,9 +291,9 @@ Rendered as an overlay on the current surface using the existing z2d overlay pip
 - `trident list-sessions` / `trident kill-session`
 - Auto-start daemon on first `--session` use
 - Single terminal per session (no tabs/splits in daemon mode yet)
-- Scrollback sync on attach
+- Screen snapshot sync on attach
 
-**Exit criteria:** Can run `trident --session work`, start a long-running process, close the window, run `trident attach work`, and see the process still running with scrollback intact.
+**Exit criteria:** Can run `trident --session work`, start a long-running process, close the window, run `trident attach work`, and see the process still running with current screen state intact.
 
 ### v3.1: Multi-Terminal Sessions
 
@@ -327,12 +367,13 @@ Tab/split layout restore (v3.1+) will need platform-specific code to recreate ta
 - No authentication on socket (relies on filesystem permissions, same model as tmux)
 - Daemon runs as the invoking user, not root
 - No network exposure — Unix domain socket only
+- **State file command re-execution (v3.3):** Session restore re-executes commands saved in `~/.local/state/trident/sessions/<name>.json`. A tampered state file could cause arbitrary command execution. Mitigated by: file permissions (0600), user-only directory (0700), same trust model as `.bashrc` / `.ssh/authorized_keys`. Not a concern for single-user local-only scope.
 
 ## 11. Performance
 
 - **Output latency:** One extra memcpy (daemon buffer → socket → client) vs direct PTY read. Measured in microseconds, imperceptible.
 - **Throughput:** Unix domain sockets handle >1 GB/s. Terminal output rarely exceeds 100 MB/s even in extreme cases (e.g. `cat /dev/urandom`).
-- **Memory:** Daemon scrollback buffer per terminal. Default 10,000 lines × ~200 bytes/line = ~2 MB per terminal. 10 terminals across sessions = ~20 MB.
+- **Memory:** Daemon screen snapshot per terminal: ~100 KB at 80×24. 10 terminals across sessions = ~1 MB. Negligible.
 - **CPU:** Daemon is mostly idle (blocked on epoll/kqueue). Only active when PTY output arrives or client sends input.
 - **Zero cost when not using sessions:** No daemon, no socket, no overhead. Normal `trident` launch is identical to today.
 
