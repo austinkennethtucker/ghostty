@@ -682,20 +682,28 @@ fn handlePtyOutput(self: *Daemon, fd: posix.fd_t, buf: *[read_buf_size]u8) void 
 
 fn handlePtyHangup(self: *Daemon, fd: posix.fd_t) void {
     const terminal = self.pty_terminals.get(fd) orelse return;
-    log.info("pty hangup for terminal id={d}", .{terminal.id});
+    const tid = terminal.id;
+    log.info("pty hangup for terminal id={d}", .{tid});
 
     terminal.markExited(0);
 
     // Notify attached client if any.
-    const session_name = self.id_sessions.get(terminal.id) orelse return;
-    const session = self.sessions.get(session_name) orelse return;
-    if (session.attached_client) |client_fd| {
-        self.sendTerminalExited(client_fd, terminal.id, 0) catch {};
+    const session_name = self.id_sessions.get(tid) orelse "";
+    const session = if (session_name.len > 0) self.sessions.get(session_name) else null;
+    if (session) |s| {
+        if (s.attached_client) |client_fd| {
+            self.sendTerminalExited(client_fd, tid, 0) catch {};
+        }
     }
 
-    // Remove the PTY fd from the poll set (it's closed by Terminal.deinit
-    // when the session or terminal is destroyed).
+    // Clean up ALL maps so the dead terminal (and its ring buffer) can
+    // be freed, rather than leaking in id_terminals / id_sessions.
     _ = self.pty_terminals.remove(fd);
+    _ = self.id_terminals.remove(tid);
+    _ = self.id_sessions.remove(tid);
+    if (session) |s| {
+        _ = s.removeTerminal(tid);
+    }
 }
 
 // -----------------------------------------------------------------------
