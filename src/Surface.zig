@@ -6232,6 +6232,52 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
 
         .close_surface => self.close(),
 
+        .detach_session => {
+            // Only meaningful when the backend is mux (session mode).
+            switch (self.io.backend) {
+                .mux => |*mux| {
+                    // Send a detach_session frame to the daemon.
+                    const daemon_mod = @import("daemon.zig");
+                    const Protocol = daemon_mod.Protocol;
+
+                    var payload_buf: [256]u8 = undefined;
+                    var payload_fbs = std.io.fixedBufferStream(&payload_buf);
+                    Protocol.writeString(payload_fbs.writer(), mux.session_name) catch |err| {
+                        log.warn("failed to build detach payload err={}", .{err});
+                        return false;
+                    };
+
+                    // Write the frame to the daemon socket.
+                    if (mux.socket_fd != -1) {
+                        const payload = payload_buf[0..payload_fbs.pos];
+                        var header_buf: [Protocol.header_size]u8 = undefined;
+                        std.mem.writeInt(u32, header_buf[0..4], @intCast(payload.len), .big);
+                        header_buf[4] = @intFromEnum(Protocol.ClientMsg.detach_session);
+
+                        const file: std.fs.File = .{ .handle = mux.socket_fd };
+                        file.writeAll(&header_buf) catch |err| {
+                            log.warn("failed to send detach header err={}", .{err});
+                        };
+                        if (payload.len > 0) {
+                            file.writeAll(payload) catch |err| {
+                                log.warn("failed to send detach payload err={}", .{err});
+                            };
+                        }
+                    }
+
+                    log.info("detaching from session '{s}'", .{mux.session_name});
+
+                    // Close the surface (the session continues on the daemon).
+                    self.close();
+                },
+                .exec => {
+                    // Not in session mode — do nothing.
+                    log.info("detach_session ignored: not in session mode", .{});
+                    return false;
+                },
+            }
+        },
+
         .close_window => return try self.rt_app.performAction(
             .{ .surface = self },
             .close_window,
@@ -6402,6 +6448,7 @@ fn closingAction(action: input.Binding.Action) bool {
         .close_surface,
         .close_window,
         .close_tab,
+        .detach_session,
         => true,
 
         else => false,
