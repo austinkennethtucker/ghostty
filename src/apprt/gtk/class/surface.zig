@@ -2661,7 +2661,9 @@ pub const Surface = extern struct {
                     };
                 }
             }
-            writer.flush() catch {};
+            writer.flush() catch |err| {
+                log.err("unable to flush shell escape writer: {}", .{err});
+            };
 
             const string = stream.toOwnedSliceSentinel(0) catch |err| {
                 log.err("unable to convert to a slice: {}", .{err});
@@ -2690,7 +2692,9 @@ pub const Surface = extern struct {
                 log.err("unable to write to buffer: {}", .{err});
                 return 0;
             };
-            writer.flush() catch {};
+            writer.flush() catch |err| {
+                log.err("unable to flush shell escape writer: {}", .{err});
+            };
 
             const string = stream.toOwnedSliceSentinel(0) catch |err| {
                 log.err("unable to convert to a slice: {}", .{err});
