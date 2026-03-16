@@ -402,8 +402,7 @@ fn highlightViLineNumbers(
     // Skip gutter background on bottom row if mode indicator active
     const indicator_row: ?usize = if (data.has_mode_indicator and state.rows > 0) state.rows - 1 else null;
 
-    // Draw gutter background + separator in one pass (paintStride = direct pixel replacement)
-    const bg_color = gutterBackground();
+    // Draw separator line (1px at right edge of gutter)
     const sep_color = gutterSeparator();
     const gutter_px_width: usize = gw * self.cell_size.width;
     const sep_x: i32 = std.math.cast(i32, gutter_px_width -| 1) orelse return;
@@ -415,7 +414,6 @@ fn highlightViLineNumbers(
         const py: i32 = std.math.cast(i32, row * self.cell_size.height) orelse continue;
         for (0..self.cell_size.height) |dy| {
             const y: i32 = py +| @as(i32, std.math.cast(i32, dy) orelse continue);
-            self.surface.paintStride(0, y, gutter_px_width, bg_color);
             self.surface.paintStride(sep_x, y, 1, sep_color);
         }
     }
