@@ -383,13 +383,12 @@ fn highlightViLineNumbers(
 
     if (state.cols < 4) return;
 
+    const cursor_abs = top_abs + cursor_row + 1;
     const max_number: usize = switch (data.mode) {
-        .relative => if (viewport_rows > 1) viewport_rows - 1 else 1,
+        .relative => @max(if (viewport_rows > 1) viewport_rows - 1 else 1, cursor_abs),
         .absolute => top_abs + viewport_rows,
     };
     const gw = gutterWidth(max_number);
-
-    if (gw * 3 > state.cols) return;
 
     // Skip gutter background on bottom row if mode indicator active
     const indicator_row: ?usize = if (data.has_mode_indicator and state.rows > 0) state.rows - 1 else null;

@@ -1761,6 +1761,14 @@ pub fn updateConfig(
     self.config.deinit();
     self.config = derived;
 
+    // If vi-mode is active, refresh render state so line number config
+    // changes take effect immediately on the next frame.
+    if (self.vi_mode != null) {
+        self.renderer_state.mutex.lock();
+        defer self.renderer_state.mutex.unlock();
+        self.updateViModeRenderState();
+    }
+
     // If our mouse is hidden but we disabled mouse hiding, then show it again.
     if (!self.config.mouse_hide_while_typing and self.mouse.hidden) {
         self.showMouse();

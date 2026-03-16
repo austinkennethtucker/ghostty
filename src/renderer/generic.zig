@@ -1276,22 +1276,15 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                         feature_list.appendSlice(arena_alloc, insp_features) catch {};
                     }
 
-                    // Vi mode features — indicator first so it draws on
-                    // a clean surface, then cursor on top so it's visible.
+                    // Vi mode features — indicator first (clean surface),
+                    // then line numbers, then cursor on top so it's visible.
                     if (state.vi_mode.active) {
                         if (state.vi_mode.mode_text) |text| {
                             feature_list.append(arena_alloc, .{
                                 .vi_mode_indicator = text,
                             }) catch {};
                         }
-                        if (state.vi_mode.cursor_row) |row| {
-                            if (state.vi_mode.cursor_col) |col| {
-                                feature_list.append(arena_alloc, .{
-                                    .vi_cursor = .{ .row = row, .col = col },
-                                }) catch {};
-                            }
-                        }
-                        // Line numbers — only if enabled and cursor is visible
+                        // Line numbers — after indicator, before cursor
                         if (state.vi_mode.line_numbers != .off) {
                             if (state.vi_mode.cursor_row) |cursor_row| {
                                 if (state.vi_mode.viewport_top_abs_row) |top_abs| {
@@ -1309,6 +1302,13 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                                         },
                                     }) catch {};
                                 }
+                            }
+                        }
+                        if (state.vi_mode.cursor_row) |row| {
+                            if (state.vi_mode.cursor_col) |col| {
+                                feature_list.append(arena_alloc, .{
+                                    .vi_cursor = .{ .row = row, .col = col },
+                                }) catch {};
                             }
                         }
                     }
