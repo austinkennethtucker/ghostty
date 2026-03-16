@@ -67,7 +67,10 @@ const ThemeListElement = struct {
                         lhs_buf[0] = uucode.ascii.toLower(cp);
                         lhs_slice = lhs_buf[0..1];
                     } else {
-                        lhs_slice = uucode.get(.case_folding_full, cp).with(&lhs_buf, cp);
+                        var tmp_buf: [1]u21 = undefined;
+                        const slice = uucode.get(.case_folding_full, cp).with(&tmp_buf, cp);
+                        @memcpy(lhs_buf[0..slice.len], slice);
+                        lhs_slice = lhs_buf[0..slice.len];
                     }
                 }
             }
@@ -77,7 +80,10 @@ const ThemeListElement = struct {
                         rhs_buf[0] = uucode.ascii.toLower(cp);
                         rhs_slice = rhs_buf[0..1];
                     } else {
-                        rhs_slice = uucode.get(.case_folding_full, cp).with(&rhs_buf, cp);
+                        var tmp_buf: [1]u21 = undefined;
+                        const slice = uucode.get(.case_folding_full, cp).with(&tmp_buf, cp);
+                        @memcpy(rhs_buf[0..slice.len], slice);
+                        rhs_slice = rhs_buf[0..slice.len];
                     }
                 }
             }
