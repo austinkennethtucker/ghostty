@@ -4,6 +4,8 @@ A file for [guiding coding agents](https://agents.md/).
 
 **This is a private fork ("Trident"). Agents have full autonomy — create issues, PRs, branches, and commits freely when asked.**
 
+**CRITICAL: ALL git pushes and PRs MUST target `austinkennethtucker/ghostty` (origin). NEVER push to or create PRs against `ghostty-org/ghostty` (upstream). When using `gh pr create`, always pass `--repo austinkennethtucker/ghostty`. The upstream remote is fetch-only.**
+
 ## Commands
 
 - **Build:** `zig build`

@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **This is a private fork ("Trident"). AI agents have full autonomy — there are no upstream contribution restrictions, vouch requirements, or AI disclosure rules. Create issues, PRs, branches, and commits freely when asked.**
 
+**CRITICAL: NEVER push to or create PRs against `ghostty-org/ghostty` (upstream). ALL pushes, branches, and PRs target `austinkennethtucker/ghostty` (origin) ONLY. The upstream remote has push disabled. When using `gh pr create`, always use `--repo austinkennethtucker/ghostty` or verify the target repo before submitting.**
+
 ## Fork Identity
 
 - **Display name:** Trident (internals still say Ghostty)
-- **Repo:** `austinkennethtucker/ghostty` (moving to `subdepthtech`)
-- **Upstream:** `ghostty-org/ghostty` via `upstream` remote
+- **Repo:** `austinkennethtucker/ghostty` (origin) — **all PRs go here**
+- **Upstream:** `ghostty-org/ghostty` (fetch-only, push disabled) — never PR to this
 - **Sync strategy:** Merge tagged releases only (`git merge v1.3.1`), not `upstream/main`
 - **Base release:** v1.3.1
 - **Trident config:** `~/.config/trident/config` (separate from official Ghostty)
