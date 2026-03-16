@@ -193,9 +193,6 @@ pub fn threadEnter(
             return error.DaemonDisconnected;
         if (header.msg_type == @intFromEnum(Protocol.ServerMsg.terminal_created)) {
             self.terminal_id = try Protocol.readU32(reader);
-            // Consume the session name string that follows the terminal id.
-            const name = try Protocol.readString(alloc, reader);
-            alloc.free(name);
         } else {
             // Unexpected response — skip the payload.
             try skipPayload(reader, header.payload_len);
