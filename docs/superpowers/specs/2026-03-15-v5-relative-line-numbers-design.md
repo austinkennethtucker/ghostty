@@ -55,9 +55,9 @@ In relative mode, the max is `viewport_rows - 1` (typically 2-3 cells). In absol
 
 ### Rendering Order
 
-In `generic.zig`, `.vi_line_numbers` is appended to the feature list **after** `.vi_cursor` and `.vi_mode_indicator`. This means line numbers render last in `applyFeatures`, on top of search highlights, selections, the vi cursor, and other overlays in the gutter area.
+In `generic.zig`, the current vi-mode feature order is: `.vi_mode_indicator` first (draws on a clean surface), then `.vi_cursor`. `.vi_line_numbers` is appended **last**, after both. This means line numbers render last in `applyFeatures`, on top of search highlights, selections, the vi cursor, and other overlays in the gutter area.
 
-Exception: the gutter background is **not drawn** on the bottom row when the mode indicator is active, so the indicator bar remains fully visible beneath the gutter columns.
+**Note:** The mode indicator uses `paintStride` (direct pixel replacement, no alpha compositing) to guarantee a uniform bar. Because line numbers render after the indicator, the gutter background must **not** be drawn on the bottom row when the indicator is active — otherwise the gutter's composited 30% black overlay would dim the indicator's clean pixels in the gutter columns.
 
 ## 2. Digit Rendering
 
