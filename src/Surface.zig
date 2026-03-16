@@ -6144,6 +6144,17 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             self.queueRender() catch {};
         },
 
+        .toggle_vi_line_numbers => {
+            // Only toggle if vi mode is active and config enables line numbers
+            if (self.vi_mode == null) return true;
+            if (self.config.vi_mode_line_numbers == .off) return true;
+            self.vi_line_numbers_visible = !self.vi_line_numbers_visible;
+            self.renderer_state.mutex.lock();
+            defer self.renderer_state.mutex.unlock();
+            self.updateViModeRenderState();
+            self.queueRender() catch {};
+        },
+
         .toggle_command_palette => return try self.rt_app.performAction(
             .{ .surface = self },
             .toggle_command_palette,
