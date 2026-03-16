@@ -511,13 +511,34 @@ fn drawDigit(
 
     const segs = digitSegments(digit);
 
-    if (segs.top) { try ctx.moveTo(x0, y0); try ctx.lineTo(x1, y0); }
-    if (segs.top_left) { try ctx.moveTo(x0, y0); try ctx.lineTo(x0, ym); }
-    if (segs.top_right) { try ctx.moveTo(x1, y0); try ctx.lineTo(x1, ym); }
-    if (segs.middle) { try ctx.moveTo(x0, ym); try ctx.lineTo(x1, ym); }
-    if (segs.bottom_left) { try ctx.moveTo(x0, ym); try ctx.lineTo(x0, y1); }
-    if (segs.bottom_right) { try ctx.moveTo(x1, ym); try ctx.lineTo(x1, y1); }
-    if (segs.bottom) { try ctx.moveTo(x0, y1); try ctx.lineTo(x1, y1); }
+    if (segs.top) {
+        try ctx.moveTo(x0, y0);
+        try ctx.lineTo(x1, y0);
+    }
+    if (segs.top_left) {
+        try ctx.moveTo(x0, y0);
+        try ctx.lineTo(x0, ym);
+    }
+    if (segs.top_right) {
+        try ctx.moveTo(x1, y0);
+        try ctx.lineTo(x1, ym);
+    }
+    if (segs.middle) {
+        try ctx.moveTo(x0, ym);
+        try ctx.lineTo(x1, ym);
+    }
+    if (segs.bottom_left) {
+        try ctx.moveTo(x0, ym);
+        try ctx.lineTo(x0, y1);
+    }
+    if (segs.bottom_right) {
+        try ctx.moveTo(x1, ym);
+        try ctx.lineTo(x1, y1);
+    }
+    if (segs.bottom) {
+        try ctx.moveTo(x0, y1);
+        try ctx.lineTo(x1, y1);
+    }
 }
 
 /// Accumulate digit path commands for a right-aligned number in the gutter.
