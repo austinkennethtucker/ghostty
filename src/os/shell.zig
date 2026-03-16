@@ -86,11 +86,10 @@ pub const ShellEscapeWriter = struct {
     writer: Writer,
     child: *Writer,
 
-    pub fn init(child: *Writer) ShellEscapeWriter {
+    pub fn init(child: *Writer, buffer: []u8) ShellEscapeWriter {
         return .{
             .writer = .{
-                // TODO: Actually use a buffer here
-                .buffer = &.{},
+                .buffer = buffer,
                 .vtable = &.{ .drain = ShellEscapeWriter.drain },
             },
             .child = child,
@@ -145,57 +144,71 @@ pub const ShellEscapeWriter = struct {
 
 test "shell escape 1" {
     var buf: [128]u8 = undefined;
+    var shell_buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    var shell: ShellEscapeWriter = .init(&writer);
+    var shell: ShellEscapeWriter = .init(&writer, &shell_buf);
     try shell.writer.writeAll("abc");
+    try shell.writer.flush();
     try testing.expectEqualStrings("abc", writer.buffered());
 }
 
 test "shell escape 2" {
     var buf: [128]u8 = undefined;
+    var shell_buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    var shell: ShellEscapeWriter = .init(&writer);
+    var shell: ShellEscapeWriter = .init(&writer, &shell_buf);
     try shell.writer.writeAll("a c");
+    try shell.writer.flush();
     try testing.expectEqualStrings("a\\ c", writer.buffered());
 }
 
 test "shell escape 3" {
     var buf: [128]u8 = undefined;
+    var shell_buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    var shell: ShellEscapeWriter = .init(&writer);
+    var shell: ShellEscapeWriter = .init(&writer, &shell_buf);
     try shell.writer.writeAll("a?c");
+    try shell.writer.flush();
     try testing.expectEqualStrings("a\\?c", writer.buffered());
 }
 
 test "shell escape 4" {
     var buf: [128]u8 = undefined;
+    var shell_buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    var shell: ShellEscapeWriter = .init(&writer);
+    var shell: ShellEscapeWriter = .init(&writer, &shell_buf);
     try shell.writer.writeAll("a\\c");
+    try shell.writer.flush();
     try testing.expectEqualStrings("a\\\\c", writer.buffered());
 }
 
 test "shell escape 5" {
     var buf: [128]u8 = undefined;
+    var shell_buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    var shell: ShellEscapeWriter = .init(&writer);
+    var shell: ShellEscapeWriter = .init(&writer, &shell_buf);
     try shell.writer.writeAll("a|c");
+    try shell.writer.flush();
     try testing.expectEqualStrings("a\\|c", writer.buffered());
 }
 
 test "shell escape 6" {
     var buf: [128]u8 = undefined;
+    var shell_buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    var shell: ShellEscapeWriter = .init(&writer);
+    var shell: ShellEscapeWriter = .init(&writer, &shell_buf);
     try shell.writer.writeAll("a\"c");
+    try shell.writer.flush();
     try testing.expectEqualStrings("a\\\"c", writer.buffered());
 }
 
 test "shell escape 7" {
     var buf: [128]u8 = undefined;
+    var shell_buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);
-    var shell: ShellEscapeWriter = .init(&writer);
+    var shell: ShellEscapeWriter = .init(&writer, &shell_buf);
     try shell.writer.writeAll("a(1)");
+    try shell.writer.flush();
     try testing.expectEqualStrings("a\\(1\\)", writer.buffered());
 }
 

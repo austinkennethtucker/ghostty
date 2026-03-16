@@ -2632,7 +2632,8 @@ pub const Surface = extern struct {
             var stream: std.Io.Writer.Allocating = .init(alloc);
             defer stream.deinit();
 
-            var shell_escape_writer: internal_os.ShellEscapeWriter = .init(&stream.writer);
+            var shell_escape_buf: [4096]u8 = undefined;
+            var shell_escape_writer: internal_os.ShellEscapeWriter = .init(&stream.writer, &shell_escape_buf);
             const writer = &shell_escape_writer.writer;
 
             const list: ?*glib.SList = list: {
@@ -2660,6 +2661,9 @@ pub const Surface = extern struct {
                     };
                 }
             }
+            writer.flush() catch |err| {
+                log.err("unable to flush shell escape writer: {}", .{err});
+            };
 
             const string = stream.toOwnedSliceSentinel(0) catch |err| {
                 log.err("unable to convert to a slice: {}", .{err});
@@ -2677,7 +2681,8 @@ pub const Surface = extern struct {
             var stream: std.Io.Writer.Allocating = .init(alloc);
             defer stream.deinit();
 
-            var shell_escape_writer: internal_os.ShellEscapeWriter = .init(&stream.writer);
+            var shell_escape_buf: [4096]u8 = undefined;
+            var shell_escape_writer: internal_os.ShellEscapeWriter = .init(&stream.writer, &shell_escape_buf);
             const writer = &shell_escape_writer.writer;
             writer.writeAll(std.mem.span(path)) catch |err| {
                 log.err("unable to write path to buffer: {}", .{err});
@@ -2686,6 +2691,9 @@ pub const Surface = extern struct {
             writer.writeAll("\n") catch |err| {
                 log.err("unable to write to buffer: {}", .{err});
                 return 0;
+            };
+            writer.flush() catch |err| {
+                log.err("unable to flush shell escape writer: {}", .{err});
             };
 
             const string = stream.toOwnedSliceSentinel(0) catch |err| {
