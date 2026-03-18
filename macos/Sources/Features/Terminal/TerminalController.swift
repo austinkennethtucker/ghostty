@@ -774,9 +774,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     func closeWindowImmediately() {
         guard let window = window else { return }
 
-        // Clear internal tabs before closing the window.
-        // Surfaces are cleaned up when split trees are released.
-        // Remove tabs in reverse order to avoid index shifting issues.
+        // Register undo BEFORE clearing internal tabs so that the full
+        // tab set is captured in the undo state.
+        registerUndoForCloseWindow()
+
+        // Clear internal tabs after undo registration.
+        // Remove in reverse order to avoid index shifting issues.
         if let manager = internalTabManager {
             for index in stride(from: manager.count - 1, through: 0, by: -1) {
                 if index != manager.selectedTabIndex {
@@ -784,8 +787,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 }
             }
         }
-
-        registerUndoForCloseWindow()
 
         if let tabGroup = window.tabGroup, tabGroup.windows.count > 1 {
             tabGroup.windows.forEach { window in
@@ -961,10 +962,33 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         let tabIndex: Int?
         weak var tabGroup: NSWindowTabGroup?
         let tabColor: TerminalTabColor
+
+        /// Captured internal tabs for undo in internal tab mode.
+        /// Nil when native tab mode is used.
+        let internalTabs: InternalTabSnapshot?
+
+        struct InternalTabSnapshot {
+            let tabs: [InternalTabManager.Tab]
+            let selectedTabIndex: Int
+        }
     }
 
     convenience init(_ ghostty: Ghostty.App, with undoState: UndoState) {
         self.init(ghostty, withSurfaceTree: undoState.surfaceTree)
+
+        // Restore internal tabs if we had them. The init above already set
+        // surfaceTree from undoState.surfaceTree (which was the selected tab's
+        // tree). We now restore the full tab set.
+        if let snapshot = undoState.internalTabs, let manager = internalTabManager {
+            // Replace the single auto-created tab with the full snapshot
+            manager.tabs = snapshot.tabs
+            manager.selectedTabIndex = snapshot.selectedTabIndex
+
+            // Sync the controller's surfaceTree to the selected tab
+            if let selected = manager.selectedTab {
+                surfaceTree = selected.splitTree
+            }
+        }
 
         // Show the window and restore its frame
         showWindow(nil)
@@ -1010,13 +1034,24 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     var undoState: UndoState? {
         guard let window else { return nil }
         guard !surfaceTree.isEmpty else { return nil }
+
+        let internalSnapshot: UndoState.InternalTabSnapshot?
+        if let manager = internalTabManager, !manager.tabs.isEmpty {
+            internalSnapshot = .init(
+                tabs: manager.tabs,
+                selectedTabIndex: manager.selectedTabIndex)
+        } else {
+            internalSnapshot = nil
+        }
+
         return .init(
             frame: window.frame,
             surfaceTree: surfaceTree,
             focusedSurface: focusedSurface?.id,
             tabIndex: window.tabGroup?.windows.firstIndex(of: window),
             tabGroup: window.tabGroup,
-            tabColor: (window as? TerminalWindow)?.tabColor ?? .none)
+            tabColor: (window as? TerminalWindow)?.tabColor ?? .none,
+            internalTabs: internalSnapshot)
     }
 
     // MARK: - NSWindowController
