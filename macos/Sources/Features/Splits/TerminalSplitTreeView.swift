@@ -34,7 +34,6 @@ enum TerminalSplitOperation {
 
 struct TerminalSplitTreeView: View {
     let tree: SplitTree<Ghostty.SurfaceView>
-    let paneTabGroups: [UUID: PaneTabGroup]
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
@@ -42,7 +41,6 @@ struct TerminalSplitTreeView: View {
             TerminalSplitSubtreeView(
                 node: node,
                 isRoot: node == tree.root,
-                paneTabGroups: paneTabGroups,
                 action: action)
             // This is necessary because we can't rely on SwiftUI's implicit
             // structural identity to detect changes to this view. Due to
@@ -58,16 +56,14 @@ private struct TerminalSplitSubtreeView: View {
 
     let node: SplitTree<Ghostty.SurfaceView>.Node
     var isRoot: Bool = false
-    let paneTabGroups: [UUID: PaneTabGroup]
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
         switch node {
-        case .leaf(let leafView):
+        case .leaf(let tabGroup):
             TerminalSplitLeaf(
-                surfaceView: leafView,
+                tabGroup: tabGroup,
                 isSplit: !isRoot,
-                tabGroup: paneTabGroups[leafView.id],
                 action: action)
 
         case .split(let split):
@@ -86,10 +82,10 @@ private struct TerminalSplitSubtreeView: View {
                 dividerColor: ghostty.config.splitDividerColor,
                 resizeIncrements: .init(width: 1, height: 1),
                 left: {
-                    TerminalSplitSubtreeView(node: split.left, paneTabGroups: paneTabGroups, action: action)
+                    TerminalSplitSubtreeView(node: split.left, action: action)
                 },
                 right: {
-                    TerminalSplitSubtreeView(node: split.right, paneTabGroups: paneTabGroups, action: action)
+                    TerminalSplitSubtreeView(node: split.right, action: action)
                 },
                 onEqualize: {
                     guard let surface = node.leftmostLeaf().surface else { return }
@@ -101,40 +97,41 @@ private struct TerminalSplitSubtreeView: View {
 }
 
 private struct TerminalSplitLeaf: View {
-    let surfaceView: Ghostty.SurfaceView
+    @EnvironmentObject private var ghostty: Ghostty.App
+
+    let tabGroup: SplitTree<Ghostty.SurfaceView>.TabGroup
     let isSplit: Bool
-    var tabGroup: PaneTabGroup? = nil
     let action: (TerminalSplitOperation) -> Void
 
     @State private var dropState: DropState = .idle
     @State private var isSelfDragging: Bool = false
 
+    private var surfaceView: Ghostty.SurfaceView {
+        tabGroup.activeView
+    }
+
+    private var tabBarPosition: Ghostty.Config.PaneTabBarPosition {
+        ghostty.config.paneTabBarPosition
+    }
+
     private var showTabBar: Bool {
-        guard let tabGroup else { return false }
-        return tabGroup.tabCount > 1
+        tabGroup.tabCount > 1 && tabBarPosition != .hidden
     }
 
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                if showTabBar {
-                    PaneTabBar(
-                        tabGroup: tabGroup!,
-                        onSelect: { index in
-                            action(.paneTab(.select(surfaceView, index)))
-                        },
-                        onClose: { index in
-                            action(.paneTab(.close(surfaceView, index)))
-                        },
-                        onNew: {
-                            action(.paneTab(.new(surfaceView)))
-                        }
-                    )
+                if showTabBar && tabBarPosition == .top {
+                    tabBar
                 }
 
                 Ghostty.InspectableSurface(
                     surfaceView: surfaceView,
                     isSplit: isSplit)
+
+                if showTabBar && tabBarPosition == .bottom {
+                    tabBar
+                }
             }
             .background {
                 // If we're dragging ourself, we hide the entire drop zone. This makes
@@ -170,6 +167,22 @@ private struct TerminalSplitLeaf: View {
     private enum DropState: Equatable {
         case idle
         case dropping(TerminalSplitDropZone)
+    }
+
+    private var tabBar: some View {
+        PaneTabBar(
+            tabGroup: tabGroup,
+            position: tabBarPosition,
+            onSelect: { index in
+                action(.paneTab(.select(surfaceView, index)))
+            },
+            onClose: { index in
+                action(.paneTab(.close(surfaceView, index)))
+            },
+            onNew: {
+                action(.paneTab(.new(surfaceView)))
+            }
+        )
     }
 
     private struct SplitDropDelegate: DropDelegate {

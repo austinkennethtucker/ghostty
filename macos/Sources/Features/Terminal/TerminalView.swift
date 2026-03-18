@@ -30,9 +30,6 @@ protocol TerminalViewModel: ObservableObject {
     /// and children. This should be @Published.
     var surfaceTree: SplitTree<Ghostty.SurfaceView> { get set }
 
-    /// Per-pane tab groups, keyed by the active surface's UUID.
-    var paneTabGroups: [UUID: PaneTabGroup] { get }
-
     /// The command palette state.
     var commandPaletteIsShowing: Bool { get set }
 
@@ -84,7 +81,6 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
 
                     TerminalSplitTreeView(
                         tree: viewModel.surfaceTree,
-                        paneTabGroups: viewModel.paneTabGroups,
                         action: { delegate?.performSplitAction($0) })
                         .environmentObject(ghostty)
                         .ghosttyLastFocusedSurface(lastFocusedSurface)

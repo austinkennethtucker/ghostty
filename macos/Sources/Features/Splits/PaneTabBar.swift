@@ -3,7 +3,8 @@ import SwiftUI
 /// A compact tab bar rendered at the top or bottom of a split pane when
 /// the pane has two or more tabs. Hidden for single-tab panes.
 struct PaneTabBar: View {
-    @ObservedObject var tabGroup: PaneTabGroup
+    let tabGroup: SplitTree<Ghostty.SurfaceView>.TabGroup
+    let position: Ghostty.Config.PaneTabBarPosition
     let onSelect: (Int) -> Void
     let onClose: (Int) -> Void
     let onNew: () -> Void
@@ -37,7 +38,7 @@ struct PaneTabBar: View {
         }
         .frame(height: 26)
         .background(.bar)
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: position == .bottom ? .top : .bottom) {
             Divider()
         }
     }

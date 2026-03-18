@@ -45,10 +45,6 @@ class BaseTerminalController: NSWindowController,
         didSet { surfaceTreeDidChange(from: oldValue, to: surfaceTree) }
     }
 
-    /// Per-pane tab groups, keyed by the active surface's UUID.
-    /// Only present when a pane has 2+ tabs. Single-tab panes have no entry.
-    @Published var paneTabGroups: [UUID: PaneTabGroup] = [:]
-
     /// This can be set to show/hide the command palette.
     @Published var commandPaletteIsShowing: Bool = false
 
@@ -852,132 +848,100 @@ class BaseTerminalController: NSWindowController,
     private func newPaneTab(at surface: Ghostty.SurfaceView, baseConfig config: Ghostty.SurfaceConfiguration? = nil) {
         guard let ghostty_app = ghostty.app else { return }
         let newView = Ghostty.SurfaceView(ghostty_app, baseConfig: config)
-
-        // Find or create the tab group for this surface
-        let group: PaneTabGroup
-        if let existing = paneTabGroups[surface.id] {
-            group = existing
-        } else {
-            group = PaneTabGroup(view: surface)
-            paneTabGroups[surface.id] = group
-        }
-
+        guard let paneTabGroup = paneTabGroup(for: surface) else { return }
+        let node = paneTabGroup.node
+        var group = paneTabGroup.group
         group.addTab(newView)
-
-        // The new surface becomes active. Swap it into the tree leaf.
-        swapActiveInTree(from: surface, to: newView, group: group)
+        replacePaneTabGroup(node: node, with: group, moveFocusTo: newView, moveFocusFrom: surface)
     }
 
     /// Close the active pane tab. If last tab, close the pane.
     private func closePaneTab(at surface: Ghostty.SurfaceView) {
-        guard let group = paneTabGroups[surface.id] else {
-            // No tab group — this is a single-tab pane. Close it normally.
-            guard let node = surfaceTree.root?.node(view: surface) else { return }
+        guard let paneTabGroup = paneTabGroup(for: surface) else { return }
+        let node = paneTabGroup.node
+        var group = paneTabGroup.group
+        let currentIndex = group.activeIndex
+        group.tabs.remove(at: currentIndex)
+
+        if group.tabs.isEmpty {
             closeSurface(node)
             return
         }
 
-        let currentIndex = group.activeIndex
-        let closedSurface = group.removeTab(at: currentIndex)
-
-        if group.tabs.isEmpty {
-            // Last tab removed — remove the group and close the pane
-            paneTabGroups.removeValue(forKey: surface.id)
-            guard let node = surfaceTree.root?.node(view: surface) else { return }
-            closeSurface(node)
-            _ = closedSurface  // released when scope ends
-        } else if group.tabCount == 1 {
-            // Down to one tab — remove the group (single-tab = no tab bar)
-            let remaining = group.activeView
-            paneTabGroups.removeValue(forKey: surface.id)
-            swapActiveInTree(from: surface, to: remaining, group: nil)
-            _ = closedSurface  // released when scope ends
-        } else {
-            // Still multiple tabs — swap the active surface
-            let newActive = group.activeView
-            swapActiveInTree(from: surface, to: newActive, group: group)
-            _ = closedSurface  // released when scope ends
+        if group.activeIndex >= group.tabs.count {
+            group.activeIndex = group.tabs.count - 1
         }
+
+        replacePaneTabGroup(node: node, with: group, moveFocusTo: group.activeView, moveFocusFrom: surface)
     }
 
     /// Close a specific tab by index (from the tab bar UI).
     private func closePaneTabAtIndex(surface: Ghostty.SurfaceView, index: Int) {
-        guard let group = paneTabGroups[surface.id] else { return }
+        guard let paneTabGroup = paneTabGroup(for: surface) else { return }
+        let node = paneTabGroup.node
+        var group = paneTabGroup.group
         guard index >= 0, index < group.tabCount else { return }
 
-        let isActiveTab = (index == group.activeIndex)
-        let closedSurface = group.removeTab(at: index)
+        let wasActiveTab = index == group.activeIndex
+        group.tabs.remove(at: index)
 
         if group.tabs.isEmpty {
-            paneTabGroups.removeValue(forKey: surface.id)
-            guard let node = surfaceTree.root?.node(view: surface) else { return }
             closeSurface(node)
-            _ = closedSurface  // released when scope ends
-        } else if group.tabCount == 1 {
-            let remaining = group.activeView
-            paneTabGroups.removeValue(forKey: surface.id)
-            if isActiveTab {
-                swapActiveInTree(from: surface, to: remaining, group: nil)
-            }
-            _ = closedSurface  // released when scope ends
-        } else if isActiveTab {
-            let newActive = group.activeView
-            swapActiveInTree(from: surface, to: newActive, group: group)
-            _ = closedSurface  // released when scope ends
-        } else {
-            // Closed a background tab, just update the group key
-            updateGroupKey(from: surface, group: group)
-            _ = closedSurface  // released when scope ends
+            return
         }
+
+        if group.activeIndex >= group.tabs.count {
+            group.activeIndex = group.tabs.count - 1
+        } else if index < group.activeIndex {
+            group.activeIndex -= 1
+        }
+
+        let focusTarget = wasActiveTab ? group.activeView : surface
+        replacePaneTabGroup(node: node, with: group, moveFocusTo: focusTarget, moveFocusFrom: surface)
     }
 
     /// Cycle to previous/next pane tab.
     private func cyclePaneTab(at surface: Ghostty.SurfaceView, direction: Int) {
-        guard let group = paneTabGroups[surface.id] else { return }
+        guard let paneTabGroup = paneTabGroup(for: surface) else { return }
+        let node = paneTabGroup.node
+        var group = paneTabGroup.group
         guard group.tabCount > 1 else { return }
 
         let newIndex = (group.activeIndex + direction + group.tabCount) % group.tabCount
-        group.setActive(newIndex)
-
-        let newActive = group.activeView
-        swapActiveInTree(from: surface, to: newActive, group: group)
+        group.activeIndex = newIndex
+        replacePaneTabGroup(node: node, with: group, moveFocusTo: group.activeView, moveFocusFrom: surface)
     }
 
     /// Jump to a specific pane tab by index.
     private func gotoPaneTab(at surface: Ghostty.SurfaceView, index: Int) {
-        guard let group = paneTabGroups[surface.id] else { return }
+        guard let paneTabGroup = paneTabGroup(for: surface) else { return }
+        let node = paneTabGroup.node
+        var group = paneTabGroup.group
         guard index >= 0, index < group.tabCount else { return }
 
-        group.setActive(index)
-        let newActive = group.activeView
-        swapActiveInTree(from: surface, to: newActive, group: group)
+        group.activeIndex = index
+        replacePaneTabGroup(node: node, with: group, moveFocusTo: group.activeView, moveFocusFrom: surface)
     }
 
-    /// Swap the surface in the tree leaf and update the tab group key.
-    private func swapActiveInTree(from oldSurface: Ghostty.SurfaceView, to newSurface: Ghostty.SurfaceView, group: PaneTabGroup?) {
-        guard let oldNode = surfaceTree.root?.node(view: oldSurface) else { return }
-        let newNode: SplitTree<Ghostty.SurfaceView>.Node = .leaf(view: newSurface)
+    private func paneTabGroup(
+        for surface: Ghostty.SurfaceView
+    ) -> (node: SplitTree<Ghostty.SurfaceView>.Node, group: SplitTree<Ghostty.SurfaceView>.TabGroup)? {
+        guard let node = surfaceTree.root?.node(view: surface),
+              case .leaf(let group) = node else { return nil }
+        return (node, group)
+    }
+
+    private func replacePaneTabGroup(
+        node: SplitTree<Ghostty.SurfaceView>.Node,
+        with group: SplitTree<Ghostty.SurfaceView>.TabGroup,
+        moveFocusTo newSurface: Ghostty.SurfaceView? = nil,
+        moveFocusFrom oldSurface: Ghostty.SurfaceView? = nil
+    ) {
         do {
-            let newTree = try surfaceTree.replacing(node: oldNode, with: newNode)
-
-            // Update the group key: remove old, add new (if group exists)
-            if let group {
-                paneTabGroups.removeValue(forKey: oldSurface.id)
-                paneTabGroups[newSurface.id] = group
-            }
-
+            let newTree = try surfaceTree.replacing(node: node, with: .leaf(group))
             replaceSurfaceTree(newTree, moveFocusTo: newSurface, moveFocusFrom: oldSurface)
         } catch {
-            Ghostty.logger.warning("failed to swap pane tab surface: \(error)")
-        }
-    }
-
-    /// Update the group dictionary key to match the current active surface.
-    private func updateGroupKey(from surface: Ghostty.SurfaceView, group: PaneTabGroup) {
-        let activeView = group.activeView
-        if activeView.id != surface.id {
-            paneTabGroups.removeValue(forKey: surface.id)
-            paneTabGroups[activeView.id] = group
+            Ghostty.logger.warning("failed to replace pane tab group: \(error)")
         }
     }
 
