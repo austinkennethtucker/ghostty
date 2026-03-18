@@ -20,6 +20,15 @@ protocol TerminalViewDelegate: AnyObject {
 
     /// A split tree operation
     func performSplitAction(_ action: TerminalSplitOperation)
+
+    /// Create a new internal tab (called from internal tab bar)
+    func internalTabBarNewTab()
+
+    /// Close the internal tab at the given index (called from internal tab bar)
+    func internalTabBarCloseTab(at index: Int)
+
+    /// Select the internal tab at the given index (called from internal tab bar)
+    func internalTabBarSelectTab(at index: Int)
 }
 
 /// The view model is a required implementation for TerminalView callers. This contains
@@ -35,6 +44,9 @@ protocol TerminalViewModel: ObservableObject {
 
     /// The update overlay should be visible.
     var updateOverlayIsVisible: Bool { get }
+
+    /// The internal tab manager, if internal tab mode is active. Nil means native tab mode.
+    var internalTabManager: InternalTabManager? { get }
 }
 
 /// The main terminal view. This terminal view supports splits.
@@ -73,6 +85,16 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
         case .ready:
             ZStack {
                 VStack(spacing: 0) {
+                    // Internal tab bar (when macos-tab-mode = internal)
+                    if let tabManager = viewModel.internalTabManager, tabManager.count > 0 {
+                        InternalTabBarView(
+                            tabManager: tabManager,
+                            onNewTab: { delegate?.internalTabBarNewTab() },
+                            onCloseTab: { index in delegate?.internalTabBarCloseTab(at: index) },
+                            onSelectTab: { index in delegate?.internalTabBarSelectTab(at: index) }
+                        )
+                    }
+
                     // If we're running in debug mode we show a warning so that users
                     // know that performance will be degraded.
                     if Ghostty.info.mode == GHOSTTY_BUILD_MODE_DEBUG || Ghostty.info.mode == GHOSTTY_BUILD_MODE_RELEASE_SAFE {

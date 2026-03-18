@@ -94,12 +94,24 @@ class TerminalWindow: NSWindow {
             self.configureTabContextMenuIfNeeded(menu)
         }
 
-        // This is required so that window restoration properly creates our tabs
-        // again. I'm not sure why this is required. If you don't do this, then
-        // tabs restore as separate windows.
-        tabbingMode = .preferred
-        DispatchQueue.main.async {
-            self.tabbingMode = .automatic
+        // Check if internal tab mode is active
+        let useInternalTabs: Bool = {
+            guard let appDelegate = NSApp.delegate as? AppDelegate else { return false }
+            return appDelegate.ghostty.config.macosTabMode == .internal
+        }()
+
+        if useInternalTabs {
+            // In internal tab mode, disable native macOS tab grouping entirely.
+            // Tabs are managed internally within a single window.
+            tabbingMode = .disallowed
+        } else {
+            // This is required so that window restoration properly creates our tabs
+            // again. I'm not sure why this is required. If you don't do this, then
+            // tabs restore as separate windows.
+            tabbingMode = .preferred
+            DispatchQueue.main.async {
+                self.tabbingMode = .automatic
+            }
         }
 
         // All new windows are based on the app config at the time of creation.

@@ -379,6 +379,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             return newWindow(ghostty, withBaseConfig: baseConfig, withParent: parent)
         }
 
+        // In internal tab mode, create an internal tab within the existing controller
+        if parentController.internalTabManager != nil {
+            parentController.newInternalTab(baseConfig: baseConfig)
+            return parentController
+        }
+
         // If our parent is in non-native fullscreen, then new tabs do not work.
         // See: https://github.com/mitchellh/ghostty/issues/392
         if let fullscreenStyle = parentController.fullscreenStyle,
@@ -768,6 +774,18 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     func closeWindowImmediately() {
         guard let window = window else { return }
 
+        // Close all surfaces in internal tabs before closing the window
+        if let manager = internalTabManager {
+            for (index, tab) in manager.tabs.enumerated() {
+                // Don't close the currently active tab's tree -- surfaceTree handles that
+                if index != manager.selectedTabIndex {
+                    for surface in tab.splitTree {
+                        surface.close()
+                    }
+                }
+            }
+        }
+
         registerUndoForCloseWindow()
 
         if let tabGroup = window.tabGroup, tabGroup.windows.count > 1 {
@@ -1115,6 +1133,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
     // Shows the "+" button in the tab bar, responds to that click.
     override func newWindowForTab(_ sender: Any?) {
+        // In internal tab mode, create an internal tab
+        if internalTabManager != nil {
+            newInternalTab()
+            return
+        }
+
         // Trigger the ghostty core event logic for a new tab.
         guard let surface = self.focusedSurface?.surface else { return }
         ghostty.newTab(surface: surface)
@@ -1226,11 +1250,38 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     }
 
     @IBAction func newTab(_ sender: Any?) {
+        // In internal tab mode, create an internal tab instead of a native tab
+        if internalTabManager != nil {
+            newInternalTab()
+            return
+        }
+
         guard let surface = focusedSurface?.surface else { return }
         ghostty.newTab(surface: surface)
     }
 
     @IBAction func closeTab(_ sender: Any?) {
+        // In internal tab mode, close the current internal tab
+        if let manager = internalTabManager {
+            if manager.count <= 1 {
+                closeWindow(sender)
+                return
+            }
+
+            guard surfaceTree.contains(where: { $0.needsConfirmQuit }) else {
+                closeInternalTab(at: manager.selectedTabIndex)
+                return
+            }
+
+            confirmClose(
+                messageText: "Close Tab?",
+                informativeText: "The terminal still has a running process. If you close the tab the process will be killed."
+            ) {
+                self.closeInternalTab(at: manager.selectedTabIndex)
+            }
+            return
+        }
+
         guard let window = window else { return }
         guard window.tabGroup?.windows.count ?? 0 > 1 else {
             closeWindow(sender)
@@ -1251,6 +1302,28 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     }
 
     @IBAction func closeOtherTabs(_ sender: Any?) {
+        // Internal tab mode
+        if let manager = internalTabManager {
+            guard manager.count > 1 else { return }
+            let needsConfirm = manager.tabs.enumerated().contains { index, tab in
+                guard index != manager.selectedTabIndex else { return false }
+                return tab.splitTree.contains(where: { $0.needsConfirmQuit })
+            }
+            if !needsConfirm {
+                let removed = manager.closeOtherTabs(except: manager.selectedTabIndex)
+                for tab in removed { for surface in tab.splitTree { surface.close() } }
+                return
+            }
+            confirmClose(
+                messageText: "Close Other Tabs?",
+                informativeText: "At least one other tab still has a running process. If you close the tab the process will be killed."
+            ) {
+                let removed = manager.closeOtherTabs(except: manager.selectedTabIndex)
+                for tab in removed { for surface in tab.splitTree { surface.close() } }
+            }
+            return
+        }
+
         guard let window = window else { return }
         guard let tabGroup = window.tabGroup else { return }
 
@@ -1283,6 +1356,28 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     }
 
     @IBAction func closeTabsOnTheRight(_ sender: Any?) {
+        // Internal tab mode
+        if let manager = internalTabManager {
+            guard manager.selectedTabIndex < manager.count - 1 else { return }
+            let rightTabs = manager.tabs[(manager.selectedTabIndex + 1)...]
+            let needsConfirm = rightTabs.contains { tab in
+                tab.splitTree.contains(where: { $0.needsConfirmQuit })
+            }
+            if !needsConfirm {
+                let removed = manager.closeTabsToTheRight(of: manager.selectedTabIndex)
+                for tab in removed { for surface in tab.splitTree { surface.close() } }
+                return
+            }
+            confirmClose(
+                messageText: "Close Tabs on the Right?",
+                informativeText: "At least one tab to the right still has a running process. If you close the tab the process will be killed."
+            ) {
+                let removed = manager.closeTabsToTheRight(of: manager.selectedTabIndex)
+                for tab in removed { for surface in tab.splitTree { surface.close() } }
+            }
+            return
+        }
+
         guard let window = window else { return }
         guard let tabGroup = window.tabGroup else { return }
         guard let currentIndex = tabGroup.windows.firstIndex(of: window) else { return }
@@ -1318,6 +1413,24 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
     @IBAction override func closeWindow(_ sender: Any?) {
         guard let window = window else { return }
+
+        // In internal tab mode, check all internal tabs for running processes
+        if let manager = internalTabManager {
+            let needsConfirm = manager.tabs.contains { tab in
+                tab.splitTree.contains(where: { $0.needsConfirmQuit })
+            }
+            if !needsConfirm {
+                closeWindowImmediately()
+                return
+            }
+            confirmClose(
+                messageText: "Close Window?",
+                informativeText: "At least one tab still has a running process. If you close the window the process will be killed."
+            ) {
+                self.closeWindowImmediately()
+            }
+            return
+        }
 
         // We need to check all the windows in our tab group for confirmation
         // if we're closing the window. If we don't have a tabgroup for any
@@ -1388,11 +1501,19 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     @objc private func onMoveTab(notification: SwiftUI.Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard target == self.focusedSurface else { return }
-        guard let window = self.window else { return }
 
         // Get the move action
         guard let action = notification.userInfo?[Notification.Name.GhosttyMoveTabKey] as? Ghostty.Action.MoveTab else { return }
         guard action.amount != 0 else { return }
+
+        // Internal tab mode
+        if let manager = internalTabManager {
+            manager.moveTab(from: manager.selectedTabIndex, by: action.amount)
+            return
+        }
+
+        // Native tab mode
+        guard let window = self.window else { return }
 
         // Determine our current selected index
         guard let windowController = window.windowController else { return }
@@ -1451,13 +1572,37 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     @objc private func onGotoTab(notification: SwiftUI.Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard target == self.focusedSurface else { return }
-        guard let window = self.window else { return }
 
         // Get the tab index from the notification
         guard let tabEnumAny = notification.userInfo?[Ghostty.Notification.GotoTabKey] else { return }
         guard let tabEnum = tabEnumAny as? ghostty_action_goto_tab_e else { return }
         let tabIndex: Int32 = tabEnum.rawValue
 
+        // Internal tab mode
+        if let manager = internalTabManager {
+            let finalIndex: Int
+            if tabIndex <= 0 {
+                let currentIndex = manager.selectedTabIndex
+                if tabIndex == GHOSTTY_GOTO_TAB_PREVIOUS.rawValue {
+                    finalIndex = currentIndex == 0 ? manager.count - 1 : currentIndex - 1
+                } else if tabIndex == GHOSTTY_GOTO_TAB_NEXT.rawValue {
+                    finalIndex = currentIndex == manager.count - 1 ? 0 : currentIndex + 1
+                } else if tabIndex == GHOSTTY_GOTO_TAB_LAST.rawValue {
+                    finalIndex = manager.count - 1
+                } else {
+                    return
+                }
+            } else {
+                guard tabIndex >= 1 else { return }
+                finalIndex = min(Int(tabIndex - 1), manager.count - 1)
+            }
+            guard finalIndex >= 0 else { return }
+            selectInternalTab(at: finalIndex)
+            return
+        }
+
+        // Native tab mode
+        guard let window = self.window else { return }
         guard let windowController = window.windowController else { return }
         guard let tabGroup = windowController.window?.tabGroup else { return }
         let tabbedWindows = tabGroup.windows
@@ -1509,12 +1654,36 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     @objc private func onCloseOtherTabs(notification: SwiftUI.Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard surfaceTree.contains(target) else { return }
+
+        // Internal tab mode
+        if let manager = internalTabManager {
+            let removedTabs = manager.closeOtherTabs(except: manager.selectedTabIndex)
+            for tab in removedTabs {
+                for surface in tab.splitTree {
+                    surface.close()
+                }
+            }
+            return
+        }
+
         closeOtherTabs(self)
     }
 
     @objc private func onCloseTabsOnTheRight(notification: SwiftUI.Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard surfaceTree.contains(target) else { return }
+
+        // Internal tab mode
+        if let manager = internalTabManager {
+            let removedTabs = manager.closeTabsToTheRight(of: manager.selectedTabIndex)
+            for tab in removedTabs {
+                for surface in tab.splitTree {
+                    surface.close()
+                }
+            }
+            return
+        }
+
         closeTabsOnTheRight(self)
     }
 
@@ -1581,6 +1750,9 @@ extension TerminalController {
     override func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(closeTabsOnTheRight):
+            if let manager = internalTabManager {
+                return manager.selectedTabIndex < manager.count - 1
+            }
             guard let window, let tabGroup = window.tabGroup else { return false }
             guard let currentIndex = tabGroup.windows.firstIndex(of: window) else { return false }
             return tabGroup.windows.indices.contains { $0 > currentIndex }

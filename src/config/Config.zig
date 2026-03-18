@@ -3301,6 +3301,22 @@ popup: RepeatablePopup = .{},
 /// Changing this option at runtime only applies to new windows.
 @"macos-titlebar-style": MacTitlebarStyle = .transparent,
 
+/// Controls how tabs are managed on macOS.
+///
+/// Valid values are:
+///
+///   * `native` - Use native macOS window tabbing. Each tab is a separate
+///     window grouped by the system. This is the default.
+///   * `internal` - Use internal tab management within a single window.
+///     Tabs are rendered as a custom tab bar inside the window. This is
+///     useful for tiling window managers like AeroSpace that manage
+///     windows independently and break native macOS tab grouping.
+///
+/// The default value is `native`.
+///
+/// Changing this option at runtime only applies to new windows.
+@"macos-tab-mode": MacTabMode = .native,
+
 /// Whether the proxy icon in the macOS titlebar is visible. The proxy icon
 /// is the icon that represents the folder of the current working directory.
 /// You can see this very clearly in the macOS built-in Terminal.app
@@ -9508,6 +9524,19 @@ pub const MacTitlebarStyle = enum {
     transparent,
     tabs,
     hidden,
+};
+
+/// See macos-tab-mode
+pub const MacTabMode = enum {
+    /// Use native macOS window tabbing. Each tab is a separate window
+    /// grouped by the system. This is the default behavior.
+    native,
+
+    /// Use internal tab management within a single window. Tabs are
+    /// rendered as a custom tab bar inside the window. This is useful
+    /// for tiling window managers like AeroSpace that manage windows
+    /// independently and break native macOS tab grouping.
+    internal,
 };
 
 /// See macos-titlebar-proxy-icon
