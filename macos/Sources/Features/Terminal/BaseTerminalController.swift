@@ -51,6 +51,10 @@ class BaseTerminalController: NSWindowController,
     /// Set if the terminal view should show the update overlay.
     @Published var updateOverlayIsVisible: Bool = false
 
+    /// The internal tab manager. Non-nil when macos-tab-mode is "internal".
+    /// When active, surfaceTree is synced with the currently selected internal tab.
+    private(set) var internalTabManager: InternalTabManager?
+
     /// True when any surface in this controller currently has an active bell.
     @Published private(set) var bell: Bool = false
 
@@ -140,6 +144,13 @@ class BaseTerminalController: NSWindowController,
         // Initialize our initial surface.
         guard let ghostty_app = ghostty.app else { preconditionFailure("app must be loaded") }
         self.surfaceTree = tree ?? .init(view: Ghostty.SurfaceView(ghostty_app, baseConfig: base))
+
+        // If internal tab mode, wrap the initial surface tree as the first tab.
+        if ghostty.config.macosTabMode == .internal {
+            let manager = InternalTabManager()
+            manager.addTab(tree: self.surfaceTree)
+            self.internalTabManager = manager
+        }
 
         // Setup our bell state for the window
         setupBellNotificationPublisher()
@@ -316,6 +327,88 @@ class BaseTerminalController: NSWindowController,
         // If our surface tree becomes empty then we have no focused surface.
         if to.isEmpty {
             focusedSurface = nil
+        }
+
+        // Keep the internal tab manager in sync with surfaceTree changes (e.g. from splits).
+        internalTabManager?.updateSelectedTree(to)
+    }
+
+    // MARK: - Internal Tab Management
+
+    /// Create a new internal tab with a fresh surface. Returns true on success.
+    @discardableResult
+    func newInternalTab(baseConfig config: Ghostty.SurfaceConfiguration? = nil) -> Bool {
+        guard let manager = internalTabManager else { return false }
+        guard let ghostty_app = ghostty.app else { return false }
+
+        // Save the current tab's state before switching
+        manager.updateSelectedTree(surfaceTree)
+        manager.updateSelectedFocusedSurface(focusedSurface)
+
+        // Create a new surface and tree
+        let newView = Ghostty.SurfaceView(ghostty_app, baseConfig: config)
+        let newTree = SplitTree<Ghostty.SurfaceView>(view: newView)
+        let newIndex = manager.addTab(tree: newTree, afterIndex: manager.selectedTabIndex)
+
+        // Switch to the new tab
+        manager.selectTab(at: newIndex)
+        surfaceTree = manager.selectedTab!.splitTree
+        focusedSurface = nil
+
+        // Focus the new surface
+        DispatchQueue.main.async {
+            Ghostty.moveFocus(to: newView)
+        }
+
+        return true
+    }
+
+    /// Close the internal tab at the given index. Returns true if the tab was closed.
+    @discardableResult
+    func closeInternalTab(at index: Int) -> Bool {
+        guard let manager = internalTabManager else { return false }
+        guard manager.count > 1 else { return false } // Don't close the last tab
+
+        // Remove the tab. The surfaces will be cleaned up when the split tree is released.
+        let wasSelected = (index == manager.selectedTabIndex)
+        guard manager.removeTab(at: index) != nil else { return false }
+
+        // If the closed tab was selected, load the new selection
+        if wasSelected {
+            if let tab = manager.selectedTab {
+                surfaceTree = tab.splitTree
+                focusedSurface = tab.focusedSurface
+                if let surface = tab.focusedSurface {
+                    DispatchQueue.main.async {
+                        Ghostty.moveFocus(to: surface)
+                    }
+                }
+            }
+        }
+
+        return true
+    }
+
+    /// Switch to the internal tab at the given index.
+    func selectInternalTab(at index: Int) {
+        guard let manager = internalTabManager else { return }
+        guard index != manager.selectedTabIndex else { return }
+        guard index >= 0, index < manager.count else { return }
+
+        // Save the current tab's state
+        manager.updateSelectedTree(surfaceTree)
+        manager.updateSelectedFocusedSurface(focusedSurface)
+
+        // Switch to the new tab
+        manager.selectTab(at: index)
+        if let tab = manager.selectedTab {
+            surfaceTree = tab.splitTree
+            focusedSurface = tab.focusedSurface
+            if let surface = tab.focusedSurface {
+                DispatchQueue.main.async {
+                    Ghostty.moveFocus(to: surface)
+                }
+            }
         }
     }
 
@@ -980,6 +1073,9 @@ class BaseTerminalController: NSWindowController,
         let lastFocusedSurface = focusedSurface
         focusedSurface = to
 
+        // Keep the internal tab manager's focused surface in sync
+        internalTabManager?.updateSelectedFocusedSurface(to)
+
         // Important to cancel any prior subscriptions
         focusedSurfaceCancellables = []
 
@@ -1013,6 +1109,9 @@ class BaseTerminalController: NSWindowController,
     private func titleDidChange(to: String) {
         lastComputedTitle = to
         applyTitleToWindow()
+
+        // Update the internal tab title
+        internalTabManager?.updateSelectedTitle(to)
     }
 
     private func applyTitleToWindow() {
@@ -1154,6 +1253,26 @@ class BaseTerminalController: NSWindowController,
         _ = action.withCString { cString in
             ghostty_surface_binding_action(surface, cString, UInt(len - 1))
         }
+    }
+
+    // MARK: - TerminalViewDelegate (Internal Tabs)
+
+    func internalTabBarNewTab() {
+        newInternalTab()
+    }
+
+    func internalTabBarCloseTab(at index: Int) {
+        guard let manager = internalTabManager else { return }
+        if manager.count <= 1 {
+            // Last tab: close the window
+            window?.close()
+        } else {
+            closeInternalTab(at: index)
+        }
+    }
+
+    func internalTabBarSelectTab(at index: Int) {
+        selectInternalTab(at: index)
     }
 
     // MARK: Appearance
