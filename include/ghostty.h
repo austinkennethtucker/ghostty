@@ -451,6 +451,7 @@ typedef struct {
   bool wait_after_command;
   ghostty_surface_context_e context;
   double background_opacity; // negative = inherit global
+  int window_padding_color; // negative = inherit global, 0=background, 1=extend, 2=extend-always
 } ghostty_surface_config_s;
 
 typedef struct {

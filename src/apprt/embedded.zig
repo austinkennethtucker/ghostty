@@ -464,6 +464,10 @@ pub const Surface = struct {
         /// Background opacity override for the surface. Negative means
         /// inherit from the global config (matches popup profile sentinel).
         background_opacity: f64 = -1,
+
+        /// Window padding color override. Negative means inherit from the
+        /// global config. 0=background, 1=extend, 2=extend-always.
+        window_padding_color: c_int = -1,
     };
 
     pub fn init(self: *Surface, app: *App, opts: Options) !void {
@@ -580,6 +584,14 @@ pub const Surface = struct {
         // Apply background opacity override if set (negative means inherit global).
         if (opts.background_opacity >= 0) {
             config.@"background-opacity" = std.math.clamp(opts.background_opacity, 0.0, 1.0);
+        }
+
+        // Apply window padding color override if set (negative means inherit global).
+        if (opts.window_padding_color >= 0) {
+            config.@"window-padding-color" = std.meta.intToEnum(
+                configpkg.WindowPaddingColor,
+                @as(u2, @intCast(std.math.clamp(opts.window_padding_color, 0, 2))),
+            ) catch .background;
         }
 
         // Initialize our surface right away. We're given a view that is

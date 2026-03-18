@@ -710,6 +710,7 @@ pub const Surface = extern struct {
             command: ?configpkg.Command = null,
             working_directory: ?[:0]const u8 = null,
             background_opacity: ?f64 = null,
+            window_padding_color: ?configpkg.WindowPaddingColor = null,
 
             pub const none: @This() = .{};
         } = .none,
@@ -722,6 +723,7 @@ pub const Surface = extern struct {
         working_directory: ?[:0]const u8 = null,
         title: ?[:0]const u8 = null,
         background_opacity: ?f64 = null,
+        window_padding_color: ?configpkg.WindowPaddingColor = null,
 
         pub const none: @This() = .{};
     }) *Self {
@@ -734,6 +736,7 @@ pub const Surface = extern struct {
             .command = if (overrides.command) |c| c.clone(alloc) catch null else null,
             .working_directory = if (overrides.working_directory) |wd| alloc.dupeZ(u8, wd) catch null else null,
             .background_opacity = overrides.background_opacity,
+            .window_padding_color = overrides.window_padding_color,
         };
         return self;
     }
@@ -3413,6 +3416,10 @@ pub const Surface = extern struct {
         // Apply popup background opacity override if set
         if (priv.overrides.background_opacity) |opacity| {
             config.@"background-opacity" = std.math.clamp(opacity, 0.0, 1.0);
+        }
+        // Apply popup window padding color override if set
+        if (priv.overrides.window_padding_color) |padding_color| {
+            config.@"window-padding-color" = padding_color;
         }
 
         // Properties that can impact surface init

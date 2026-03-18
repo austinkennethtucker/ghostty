@@ -372,6 +372,7 @@ pub const PopupManager = struct {
         win.newTabForWindow(null, .{
             .working_directory = working_directory,
             .background_opacity = profile.opacity,
+            .window_padding_color = .extend,
         });
 
         // Show the window
