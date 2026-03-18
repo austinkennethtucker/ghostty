@@ -7,6 +7,7 @@ import SwiftUI
 enum TerminalSplitOperation {
     case resize(Resize)
     case drop(Drop)
+    case paneTab(PaneTabOp)
 
     struct Resize {
         let node: SplitTree<Ghostty.SurfaceView>.Node
@@ -23,10 +24,17 @@ enum TerminalSplitOperation {
         /// The zone it was dropped to determine how to split the destination.
         let zone: TerminalSplitDropZone
     }
+
+    enum PaneTabOp {
+        case new(Ghostty.SurfaceView)
+        case close(Ghostty.SurfaceView, Int)
+        case select(Ghostty.SurfaceView, Int)
+    }
 }
 
 struct TerminalSplitTreeView: View {
     let tree: SplitTree<Ghostty.SurfaceView>
+    let paneTabGroups: [UUID: PaneTabGroup]
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
@@ -34,6 +42,7 @@ struct TerminalSplitTreeView: View {
             TerminalSplitSubtreeView(
                 node: node,
                 isRoot: node == tree.root,
+                paneTabGroups: paneTabGroups,
                 action: action)
             // This is necessary because we can't rely on SwiftUI's implicit
             // structural identity to detect changes to this view. Due to
@@ -49,12 +58,17 @@ private struct TerminalSplitSubtreeView: View {
 
     let node: SplitTree<Ghostty.SurfaceView>.Node
     var isRoot: Bool = false
+    let paneTabGroups: [UUID: PaneTabGroup]
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
         switch node {
         case .leaf(let leafView):
-            TerminalSplitLeaf(surfaceView: leafView, isSplit: !isRoot, action: action)
+            TerminalSplitLeaf(
+                surfaceView: leafView,
+                isSplit: !isRoot,
+                tabGroup: paneTabGroups[leafView.id],
+                action: action)
 
         case .split(let split):
             let splitViewDirection: SplitViewDirection = switch split.direction {
@@ -72,10 +86,10 @@ private struct TerminalSplitSubtreeView: View {
                 dividerColor: ghostty.config.splitDividerColor,
                 resizeIncrements: .init(width: 1, height: 1),
                 left: {
-                    TerminalSplitSubtreeView(node: split.left, action: action)
+                    TerminalSplitSubtreeView(node: split.left, paneTabGroups: paneTabGroups, action: action)
                 },
                 right: {
-                    TerminalSplitSubtreeView(node: split.right, action: action)
+                    TerminalSplitSubtreeView(node: split.right, paneTabGroups: paneTabGroups, action: action)
                 },
                 onEqualize: {
                     guard let surface = node.leftmostLeaf().surface else { return }
@@ -89,16 +103,39 @@ private struct TerminalSplitSubtreeView: View {
 private struct TerminalSplitLeaf: View {
     let surfaceView: Ghostty.SurfaceView
     let isSplit: Bool
+    var tabGroup: PaneTabGroup? = nil
     let action: (TerminalSplitOperation) -> Void
 
     @State private var dropState: DropState = .idle
     @State private var isSelfDragging: Bool = false
 
+    private var showTabBar: Bool {
+        guard let tabGroup else { return false }
+        return tabGroup.tabCount > 1
+    }
+
     var body: some View {
         GeometryReader { geometry in
-            Ghostty.InspectableSurface(
-                surfaceView: surfaceView,
-                isSplit: isSplit)
+            VStack(spacing: 0) {
+                if showTabBar {
+                    PaneTabBar(
+                        tabGroup: tabGroup!,
+                        onSelect: { index in
+                            action(.paneTab(.select(surfaceView, index)))
+                        },
+                        onClose: { index in
+                            action(.paneTab(.close(surfaceView, index)))
+                        },
+                        onNew: {
+                            action(.paneTab(.new(surfaceView)))
+                        }
+                    )
+                }
+
+                Ghostty.InspectableSurface(
+                    surfaceView: surfaceView,
+                    isSplit: isSplit)
+            }
             .background {
                 // If we're dragging ourself, we hide the entire drop zone. This makes
                 // it so that a released drop animates back to its source properly
