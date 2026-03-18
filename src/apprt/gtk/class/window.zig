@@ -427,6 +427,7 @@ pub const Window = extern struct {
             working_directory: ?[:0]const u8 = null,
             title: ?[:0]const u8 = null,
             background_opacity: ?f64 = null,
+            window_padding_color: ?configpkg.WindowPaddingColor = null,
 
             pub const none: @This() = .{};
         },
@@ -439,6 +440,7 @@ pub const Window = extern struct {
                 .working_directory = overrides.working_directory,
                 .title = overrides.title,
                 .background_opacity = overrides.background_opacity,
+                .window_padding_color = overrides.window_padding_color,
             },
         );
     }
@@ -452,6 +454,7 @@ pub const Window = extern struct {
             working_directory: ?[:0]const u8 = null,
             title: ?[:0]const u8 = null,
             background_opacity: ?f64 = null,
+            window_padding_color: ?configpkg.WindowPaddingColor = null,
 
             pub const none: @This() = .{};
         },
@@ -467,6 +470,7 @@ pub const Window = extern struct {
                 .working_directory = overrides.working_directory,
                 .title = overrides.title,
                 .background_opacity = overrides.background_opacity,
+                .window_padding_color = overrides.window_padding_color,
             },
         );
 

@@ -192,6 +192,7 @@ pub const Tab = extern struct {
         working_directory: ?[:0]const u8 = null,
         title: ?[:0]const u8 = null,
         background_opacity: ?f64 = null,
+        window_padding_color: ?configpkg.WindowPaddingColor = null,
 
         pub const none: @This() = .{};
     }) *Self {
@@ -216,6 +217,7 @@ pub const Tab = extern struct {
             .working_directory = overrides.working_directory,
             .title = overrides.title,
             .background_opacity = overrides.background_opacity,
+            .window_padding_color = overrides.window_padding_color,
         }) catch |err| switch (err) {
             error.OutOfMemory => {
                 // TODO: We should make our "no surfaces" state more aesthetically

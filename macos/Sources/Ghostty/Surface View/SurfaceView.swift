@@ -665,6 +665,10 @@ extension Ghostty {
         /// Per-popup background opacity override (0.0-1.0). nil means use global config.
         var backgroundOpacity: Double? = nil
 
+        /// Window padding color override. nil means use global config.
+        /// 0=background, 1=extend, 2=extend-always.
+        var windowPaddingColor: Int32? = nil
+
         init() {}
 
         init(from config: ghostty_surface_config_s) {
@@ -725,6 +729,9 @@ extension Ghostty {
 
             // Set background opacity override (negative means inherit global)
             config.background_opacity = backgroundOpacity ?? -1
+
+            // Set window padding color override (negative means inherit global)
+            config.window_padding_color = windowPaddingColor ?? -1
 
             // Use withCString to ensure strings remain valid for the duration of the closure
             return try workingDirectory.withCString { cWorkingDir in

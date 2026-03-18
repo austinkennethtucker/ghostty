@@ -274,6 +274,10 @@ class PopupController: BaseTerminalController {
             config.backgroundOpacity = max(0.0, min(1.0, opacity))
         }
 
+        // Use "extend" padding color for popups to avoid a visible black
+        // bar on the window edges (issue #31).
+        config.windowPaddingColor = 1  // 1 = extend
+
         return config
     }
 
