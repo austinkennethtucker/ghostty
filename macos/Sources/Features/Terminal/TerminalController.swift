@@ -776,9 +776,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
         // Clear internal tabs before closing the window.
         // Surfaces are cleaned up when split trees are released.
+        // Remove tabs in reverse order to avoid index shifting issues.
         if let manager = internalTabManager {
-            for (index, _) in manager.tabs.enumerated() where index != manager.selectedTabIndex {
-                _ = manager.removeTab(at: index)
+            for index in stride(from: manager.count - 1, through: 0, by: -1) {
+                if index != manager.selectedTabIndex {
+                    _ = manager.removeTab(at: index)
+                }
             }
         }
 
@@ -1646,26 +1649,16 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     @objc private func onCloseOtherTabs(notification: SwiftUI.Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard surfaceTree.contains(target) else { return }
-
-        // Internal tab mode
-        if let manager = internalTabManager {
-            _ = manager.closeOtherTabs(except: manager.selectedTabIndex)
-            return
-        }
-
+        // Route through the action method which handles confirmation for both
+        // native and internal tab modes.
         closeOtherTabs(self)
     }
 
     @objc private func onCloseTabsOnTheRight(notification: SwiftUI.Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard surfaceTree.contains(target) else { return }
-
-        // Internal tab mode
-        if let manager = internalTabManager {
-            _ = manager.closeTabsToTheRight(of: manager.selectedTabIndex)
-            return
-        }
-
+        // Route through the action method which handles confirmation for both
+        // native and internal tab modes.
         closeTabsOnTheRight(self)
     }
 
