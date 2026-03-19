@@ -712,9 +712,9 @@ fn actionCommands(action: Action.Key) []const Command {
         }},
 
         .text => comptime &.{.{
-            .action = .{ .text = "👻" },
-            .title = "Ghostty",
-            .description = "Put a little Ghostty in your terminal.",
+            .action = .{ .text = "🔱" },
+            .title = "Trident",
+            .description = "Put a little Trident in your terminal.",
         }},
 
         // No commands because they're parameterized and there
