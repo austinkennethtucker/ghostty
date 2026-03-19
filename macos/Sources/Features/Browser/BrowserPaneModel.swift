@@ -5,6 +5,8 @@ import WebKit
 /// Model backing the embedded browser pane. Manages navigation state
 /// and owns the WKWebView configuration.
 class BrowserPaneModel: NSObject, ObservableObject {
+    let id = UUID()
+
     @Published var urlString: String = ""
     @Published private(set) var currentURL: URL?
     @Published private(set) var pageTitle: String = ""
@@ -22,15 +24,22 @@ class BrowserPaneModel: NSObject, ObservableObject {
 
     private var webView: WKWebView?
     private var observations: [NSKeyValueObservation] = []
+    private(set) var socketServer: BrowserSocketServer?
 
     init(proxyURL: String? = nil, proxyCertPath: String? = nil, tlsStrict: Bool = true) {
         self.proxyURL = proxyURL
         self.proxyCertPath = proxyCertPath
         self.tlsStrict = tlsStrict
         super.init()
+
+        let server = BrowserSocketServer(paneId: id)
+        server.model = self
+        try? server.start()
+        self.socketServer = server
     }
 
     deinit {
+        socketServer?.stop()
         observations.forEach { $0.invalidate() }
         observations.removeAll()
     }
@@ -91,4 +100,52 @@ class BrowserPaneModel: NSObject, ObservableObject {
     func goForward() { webView?.goForward() }
     func reload() { webView?.reload() }
     func stopLoading() { webView?.stopLoading() }
+
+    // MARK: - Socket Command Helpers
+
+    func evaluateJavaScript(_ code: String, completion: @escaping (Any?, Error?) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(code, completionHandler: completion)
+        }
+    }
+
+    func takeSnapshot(completion: @escaping (Data?) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let webView = self?.webView else {
+                completion(nil)
+                return
+            }
+            let config = WKSnapshotConfiguration()
+            webView.takeSnapshot(with: config) { image, _ in
+                guard let image = image else {
+                    completion(nil)
+                    return
+                }
+                let rep = NSBitmapImageRep(data: image.tiffRepresentation!)
+                completion(rep?.representation(using: .png, properties: [:]))
+            }
+        }
+    }
+
+    func getCookies(completion: @escaping ([HTTPCookie]) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let store = self?.webView?.configuration.websiteDataStore.httpCookieStore else {
+                completion([])
+                return
+            }
+            store.getAllCookies { cookies in
+                completion(cookies)
+            }
+        }
+    }
+
+    func setCookie(_ cookie: HTTPCookie, completion: @escaping () -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let store = self?.webView?.configuration.websiteDataStore.httpCookieStore else {
+                completion()
+                return
+            }
+            store.setCookie(cookie, completionHandler: completion)
+        }
+    }
 }
