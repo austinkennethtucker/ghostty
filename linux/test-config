@@ -1,0 +1,43 @@
+# Trident Test Config — exercises all fork-specific features
+# Copy to ~/.config/ghostty/config (or pass via --config-file)
+
+# ─── Appearance ───────────────────────────────────────────────
+theme = TokyoNight
+term = xterm-256color
+background-opacity = 0.95
+font-family = JetBrains Mono
+font-size = 14
+
+# ─── Per-Pane Tabs ────────────────────────────────────────────
+pane-tab-bar-position = top
+keybind = ctrl+shift+t=new_pane_tab
+keybind = ctrl+shift+w=close_pane_tab
+keybind = ctrl+tab=goto_pane_tab_next
+keybind = ctrl+shift+tab=goto_pane_tab_prev
+keybind = ctrl+alt+1=goto_pane_tab:0
+keybind = ctrl+alt+2=goto_pane_tab:1
+keybind = ctrl+alt+3=goto_pane_tab:2
+
+# ─── Vi Mode ─────────────────────────────────────────────────
+keybind = ctrl+shift+v=enter_vi_mode
+vi-mode-line-numbers = relative
+
+# ─── Popup Terminals ─────────────────────────────────────────
+popup = shell:position:center,width:80%,height:70%,autohide:false,opacity:0.95,persist:true
+keybind = ctrl+grave_accent=toggle_popup:shell
+
+# ─── Quick Terminal ───────────────────────────────────────────
+quick-terminal-position = top
+keybind = ctrl+space=toggle_quick_terminal
+
+# ─── Split Panes ─────────────────────────────────────────────
+keybind = ctrl+shift+l=new_split:right
+keybind = ctrl+shift+h=new_split:left
+keybind = ctrl+shift+k=new_split:up
+keybind = ctrl+shift+j=new_split:down
+keybind = ctrl+h=goto_split:left
+keybind = ctrl+j=goto_split:bottom
+keybind = ctrl+k=goto_split:top
+keybind = ctrl+l=goto_split:right
+keybind = ctrl+z=toggle_split_zoom
+keybind = ctrl+shift+q=close_surface
