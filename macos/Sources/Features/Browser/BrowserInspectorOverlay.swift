@@ -68,11 +68,21 @@ class BrowserInspectorOverlay {
 
     func activate() {
         isActive = true
-        webView?.evaluateJavaScript(overlayScript, completionHandler: nil)
+        DispatchQueue.main.async { [weak self] in
+            guard let script = self?.overlayScript else { return }
+            self?.webView?.evaluateJavaScript(script) { _, error in
+                if let error = error {
+                    print("[BrowserInspector] overlay inject error: \(error)")
+                }
+            }
+        }
     }
 
     func deactivate() {
         isActive = false
-        webView?.evaluateJavaScript(removeScript, completionHandler: nil)
+        DispatchQueue.main.async { [weak self] in
+            guard let script = self?.removeScript else { return }
+            self?.webView?.evaluateJavaScript(script, completionHandler: nil)
+        }
     }
 }
