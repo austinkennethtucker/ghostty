@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const gdk = @import("gdk");
 const glib = @import("glib");
 const gio = @import("gio");
 const gobject = @import("gobject");
@@ -375,10 +376,39 @@ pub const PopupManager = struct {
             .window_padding_color = .extend,
         });
 
+        // Apply popup size from profile before presenting.
+        applyPopupSize(win.as(gtk.Window), profile);
+
         // Show the window
         gtk.Window.present(win.as(gtk.Window));
 
         return true;
+    }
+
+    /// Apply popup profile width/height to a GTK window before presenting.
+    /// Resolves percentage dimensions against the primary monitor's geometry.
+    fn applyPopupSize(gtk_win: *gtk.Window, profile: *const popupmod.PopupProfile) void {
+        const display = gdk.Display.getDefault() orelse return;
+        const monitors = display.getMonitors();
+        const first = monitors.getObject(0) orelse return;
+        const monitor: *gdk.Monitor = @ptrCast(@alignCast(first));
+
+        var geom: gdk.Rectangle = undefined;
+        monitor.getGeometry(&geom);
+
+        const mon_w: u32 = @intCast(geom.f_width);
+        const mon_h: u32 = @intCast(geom.f_height);
+
+        const width: c_int = @intCast(switch (profile.width.unit) {
+            .percent => mon_w * profile.width.value / 100,
+            .pixels => profile.width.value,
+        });
+        const height: c_int = @intCast(switch (profile.height.unit) {
+            .percent => mon_h * profile.height.value / 100,
+            .pixels => profile.height.value,
+        });
+
+        gtk_win.setDefaultSize(width, height);
     }
 
     // -- Internal helpers --

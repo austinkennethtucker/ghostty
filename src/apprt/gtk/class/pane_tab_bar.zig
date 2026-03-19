@@ -205,7 +205,7 @@ pub const PaneTabBar = extern struct {
         const priv = self.private();
         for (priv.tabs.items, 0..) |tab, index| {
             if (tab.button == button) {
-                signals.@"tab-selected".impl.emit(self, null, .{@as(u32, @intCast(index))}, null);
+                signals.@"tab-selected".impl.emit(self, null, .{@as(c_uint, @intCast(index))}, null);
                 return;
             }
         }
@@ -215,7 +215,7 @@ pub const PaneTabBar = extern struct {
         const priv = self.private();
         for (priv.tabs.items, 0..) |tab, index| {
             if (tab.close_button == button) {
-                signals.@"tab-closed".impl.emit(self, null, .{@as(u32, @intCast(index))}, null);
+                signals.@"tab-closed".impl.emit(self, null, .{@as(c_uint, @intCast(index))}, null);
                 return;
             }
         }
