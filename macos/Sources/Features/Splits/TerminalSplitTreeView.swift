@@ -53,6 +53,7 @@ struct TerminalSplitTreeView: View {
 
 private struct TerminalSplitSubtreeView: View {
     @EnvironmentObject var ghostty: Ghostty.App
+    @Environment(\.paneNeighbors) private var parentNeighbors
 
     let node: SplitTree<Ghostty.SurfaceView>.Node
     var isRoot: Bool = false
@@ -83,9 +84,15 @@ private struct TerminalSplitSubtreeView: View {
                 resizeIncrements: .init(width: 1, height: 1),
                 left: {
                     TerminalSplitSubtreeView(node: split.left, action: action)
+                        .paneNeighbors(parentNeighbors.union(
+                            split.direction == .horizontal ? .hasRight : .hasBottom
+                        ))
                 },
                 right: {
                     TerminalSplitSubtreeView(node: split.right, action: action)
+                        .paneNeighbors(parentNeighbors.union(
+                            split.direction == .horizontal ? .hasLeft : .hasTop
+                        ))
                 },
                 onEqualize: {
                     guard let surface = node.leftmostLeaf().surface else { return }
