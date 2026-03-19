@@ -77,8 +77,13 @@ class BrowserPaneModel: NSObject, ObservableObject {
     }
 
     func navigate(to urlString: String) {
-        self.urlString = urlString
-        guard let url = URL(string: urlString) else { return }
+        var normalized = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Auto-prepend https:// if no scheme is present
+        if !normalized.contains("://") {
+            normalized = "https://\(normalized)"
+        }
+        self.urlString = normalized
+        guard let url = URL(string: normalized) else { return }
         webView?.load(URLRequest(url: url))
     }
 

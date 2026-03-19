@@ -58,10 +58,11 @@ extension Ghostty {
         }
 
         private func onToggleBrowser() {
-            surfaceView.browserVisible.toggle()
-            if surfaceView.browserVisible && surfaceView.browserModel == nil {
+            // Ensure model exists before showing
+            if surfaceView.browserModel == nil {
                 surfaceView.browserModel = BrowserPaneModel()
             }
+            surfaceView.browserVisible.toggle()
         }
     }
 }
