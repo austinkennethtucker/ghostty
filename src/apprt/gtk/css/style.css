@@ -181,3 +181,17 @@ label.resize-overlay {
   margin: 0;
   padding: 0;
 }
+
+.pane-tab-bar {
+  padding: 2px 4px;
+  background-color: alpha(currentColor, 0.08);
+  background-clip: padding-box;
+}
+
+.pane-tab-bar.top {
+  border-bottom: 1px solid alpha(currentColor, 0.12);
+}
+
+.pane-tab-bar.bottom {
+  border-top: 1px solid alpha(currentColor, 0.12);
+}

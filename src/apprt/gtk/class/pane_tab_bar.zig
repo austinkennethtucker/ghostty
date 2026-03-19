@@ -62,6 +62,7 @@ pub const PaneTabBar = extern struct {
         self.as(gtk.Orientable).setOrientation(.horizontal);
         widget.addCssClass("toolbar");
         widget.addCssClass("linked");
+        widget.addCssClass("pane-tab-bar");
         widget.setHalign(.fill);
         widget.setValign(.start);
         widget.setSizeRequest(-1, 26);
