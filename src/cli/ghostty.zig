@@ -18,6 +18,7 @@ const validate_config = @import("validate_config.zig");
 const crash_report = @import("crash_report.zig");
 const show_face = @import("show_face.zig");
 const boo = @import("boo.zig");
+const trident = @import("trident.zig");
 const new_window = @import("new_window.zig");
 
 /// Special commands that can be invoked via CLI flags. These are all
@@ -65,6 +66,9 @@ pub const Action = enum {
 
     // Boo!
     boo,
+
+    // Trident animation
+    trident,
 
     // Use IPC to tell the running Ghostty to open a new window.
     @"new-window",
@@ -146,6 +150,7 @@ pub const Action = enum {
             .@"crash-report" => try crash_report.run(alloc),
             .@"show-face" => try show_face.run(alloc),
             .boo => try boo.run(alloc),
+            .trident => try trident.run(alloc),
             .@"new-window" => try new_window.run(alloc),
         };
     }
@@ -185,6 +190,7 @@ pub const Action = enum {
                 .@"crash-report" => crash_report.Options,
                 .@"show-face" => show_face.Options,
                 .boo => boo.Options,
+                .trident => trident.Options,
                 .@"new-window" => new_window.Options,
             };
         }

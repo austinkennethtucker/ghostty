@@ -1,0 +1,41 @@
+                                               ··<span class="b">@</span>··                                                
+                                              ··<span class="b">@</span>@<span class="b">@</span>··                                               
+                                             ··<span class="b">@</span>@@@<span class="b">@</span>··                                              
+                                            <span class="b">··$</span>@@@@@<span class="b">$</span>··                                             
+                             <span class="b">···</span>           <span class="b">··$$@@@@@$$··</span>           <span class="b">···</span>                              
+                            <span class="b">··@··</span>         <span class="b">··$$$@@@@@$$$··</span>         <span class="b">··@··</span>                             
+                           <span class="b">··@@@··</span>       <span class="b">··$$$$@@@@@$$$$··</span>       <span class="b">··@@@··</span>                            
+                          <span class="b">··@@@@@··</span>     <span class="b">··$$$$$@@@@@$$$$$··</span>     <span class="b">··@@@@@··</span>                           
+                         <span class="b">··$</span>@@@<span class="b">@@$··</span>   <span class="b">··$$$$$$@@@@@$$$$$$··</span>   <span class="b">··$@@@@</span>@<span class="b">$··</span>                          
+                        ··<span class="b">$</span>$@@@@@$<span class="b">$</span>··<span class="b">···$</span>$$<span class="b">$$$$@@@@@$$$$$$$·····$</span>$@@@@@$<span class="b">$</span>··                         
+                       ··<span class="b">$</span>$$@@@@@$$<span class="b">$</span>··<span class="b">$$</span>$$$$$$$@@@@@$$$$$$$<span class="b">$$</span>··<span class="b">$</span>$$@@@@@$$<span class="b">$</span>···                       
+                      ··<span class="b">$</span>$$$@@@@@$$$<span class="b">$$</span>$$$$$$$$$@@@@@$$$$$$$$$<span class="b">$$</span>$$$$@@@@@$$<span class="b">$$</span>···                     
+                     ··<span class="b">$</span>$$$$@@@@@$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$@@@@@$$$<span class="b">$$</span>···                   
+                    ··<span class="b">$</span>$$$$$$@@@@$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$@@@@$$$$$<span class="b">$$</span>·                   
+                    <span class="b">·=$</span>$$$$$$$@@@@@$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$@@@@@$$$$$$$<span class="b">$=·</span>                   
+                    ·<span class="b">*</span>%$$$$$$$$$$@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@$$$$$$$$$$%<span class="b">*</span>·                   
+                    ·<span class="b">*</span>%%$$$$$$$$$$$$@@@@@@@@@@@@@@@@@@@@@@@@@@@$$$$$$$$$$$$$$%%<span class="b">*</span>·                   
+                    ·<span class="b">*</span>%$$$$$$$$$$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$$$$$$$$$$%<span class="b">*</span>·                   
+                    <span class="b">··=%$$$$$$$$$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$$$$$$$$$%=··</span>                   
+                     <span class="b">···*%$$$$$$$$$$$$$$$$$$$$@@@@@@@$$$$$$$$$$$$$$$$$$$$$$%*···</span>                    
+                       <span class="b">···=%$$$$$$$$$$$$$$$$$$@@@@@@@$$$$$$$$$$$$$$$$$$$$%=···</span>                      
+                         <span class="b">···*%$$$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$$$%*···</span>                        
+                           <span class="b">···=%$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$%=···</span>                          
+                             <span class="b">···*%$$$$$$$$$$$$@@@@@@@$$$$$$$$$$$$$$%*···</span>                            
+                               <span class="b">···=%$$$$$$$$$$$@@@@@$$$$$$$$$$$$$%=···</span>                              
+                                 <span class="b">···*%$$$$$$$$$@@@@@$$$$$$$$$$$%*···</span>                                
+                                   <span class="b">···=%$$$$$$@@@@@@@$$$$$$$$%=···</span>                                  
+                                     <span class="b">···*%$$$$@@@@@@@$$$$$$%*···</span>                                    
+                                       ···<span class="b">=%</span>$$$@@@@@$$$$$<span class="b">%=</span>···                                      
+                                         ···<span class="b">*</span>%$$@@@@@$$%<span class="b">*</span>···                                        
+                                           ··<span class="b">=</span>%$@@@@@$%<span class="b">=</span>··                                          
+                                            ··<span class="b">*</span>%@@@@@%<span class="b">*</span>··                                           
+                                             ·<span class="b">=</span>%@@@@@%<span class="b">=</span>·                                            
+                                            ··<span class="b">*</span>%@@@@@%<span class="b">*</span>··                                           
+                                           ··<span class="b">=</span>%$$@@@$$%<span class="b">=</span>··                                          
+                                          ··<span class="b">*</span>%$$$@@@$$$%<span class="b">*</span>··                                         
+                                         ··<span class="b">=</span>%$$$$@@@$$$$%<span class="b">=</span>··                                        
+                                         ·<span class="b">*</span>%$$$$$@@@$$$$$%<span class="b">*</span>·                                        
+                                         ··<span class="b">=*%</span>$$$$@$$$$<span class="b">%*=</span>··                                        
+                                          <span class="b">····=*%$$$%*=····</span>                                         
+                                             <span class="b">···········</span>                                            

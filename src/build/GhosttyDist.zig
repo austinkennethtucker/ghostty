@@ -29,6 +29,7 @@ pub fn init(b: *std.Build, cfg: *const Config) !GhosttyDist {
     {
         const framedata = GhosttyFrameData.distResources(b);
         try resources.append(alloc, framedata.framedata);
+        try resources.append(alloc, framedata.trident_framedata);
     }
 
     // git archive to create the final tarball. "git archive" is the

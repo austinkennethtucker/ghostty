@@ -237,7 +237,8 @@ def verify_frame(frame_str):
 
 
 def main():
-    frames_dir = os.path.join(os.path.dirname(__file__), 'frames')
+    frames_dir = os.path.join(os.path.dirname(__file__), 'trident_frames')
+    os.makedirs(frames_dir, exist_ok=True)
 
     # Remove existing frames
     for f in os.listdir(frames_dir):
