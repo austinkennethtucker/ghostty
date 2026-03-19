@@ -47,7 +47,7 @@
 		</dict>
 	</array>
 	<key>CFBundleIconFile</key>
-	<string>Trident</string>
+	<string>Ghostty</string>
 	<key>GhosttyBuild</key>
 	<string></string>
 	<key>GhosttyCommit</key>

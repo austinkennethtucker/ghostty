@@ -4,7 +4,8 @@
 Each frame is 100 chars wide x 41 lines tall, using the same character set and
 <span class="b"> markup as the original ghost animation.
 
-A large, detailed trident with a wave of blue energy sweeping upward.
+The trident matches the angular Trident app logo: three sharp arrow-tipped
+prongs, a diamond crossguard, and a tapered blade shaft.
 """
 
 import math
@@ -15,54 +16,50 @@ WIDTH = 100
 HEIGHT = 41
 NUM_FRAMES = 235
 
-# We'll define the trident as raw ASCII art lines (no spans), then the
-# animation logic adds spans per-frame based on the shimmer wave position.
-# Each line must be exactly 100 chars (padded with spaces).
-
-# Design: a chunky, detailed trident filling ~70 cols x 39 rows.
-# Characters used: @$%*+=xo~· and space.
-
+# The trident ASCII art matching the app logo geometry.
+# Three arrow-tipped prongs, diamond crossguard, tapered shaft.
+# Each line padded to 100 chars by parse_art().
 TRIDENT_ART = r"""
-                                                 @
-                                                @@@
-                                               @@@@@
-                                              $@@@@@$
-                                             $$@@@@@$$
-                              @             $$$@@@@@$$$             @
-                             @@@           $$$$@@@@@$$$$           @@@
-                            @@@@@         $$$$$@@@@@$$$$$         @@@@@
-                           $@@@@@$       $$$$$$@@@@@$$$$$$       $@@@@@$
-                          $$@@@@@$$     $$$$$$$@@@@@$$$$$$$     $$@@@@@$$
-                         $$$@@@@@$$$  $$$$$$$$$@@@@@$$$$$$$$$  $$$@@@@@$$$
-                        $$$$@@@@@$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$@@@@@$$$$
-                       $$$$$@@@@@$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$@@@@@$$$$$
-                      $$$$$$$@@@@$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$@@@@$$$$$$$
-                     =$$$$$$$$@@@@@$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$@@@@@$$$$$$$$=
-                     *%$$$$$$$$$$@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@$$$$$$$$$$%*
-                     *%%$$$$$$$$$$$$@@@@@@@@@@@@@@@@@@@@@@@@@@@$$$$$$$$$$$$$$%%*
-                     *%$$$$$$$$$$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$$$$$$$$$$%*
-                      =%$$$$$$$$$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$$$$$$$$$%=
-                        *%$$$$$$$$$$$$$$$$$$$$@@@@@@@$$$$$$$$$$$$$$$$$$$$$$%*
-                          =%$$$$$$$$$$$$$$$$$$@@@@@@@$$$$$$$$$$$$$$$$$$$$%=
-                            *%$$$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$$$%*
-                              =%$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$%=
-                                *%$$$$$$$$$$$$@@@@@@@$$$$$$$$$$$$$$%*
-                                  =%$$$$$$$$$$$@@@@@$$$$$$$$$$$$$%=
-                                    *%$$$$$$$$$@@@@@$$$$$$$$$$$%*
-                                      =%$$$$$$@@@@@@@$$$$$$$$%=
-                                        *%$$$$@@@@@@@$$$$$$%*
-                                          =%$$$@@@@@$$$$$%=
-                                            *%$$@@@@@$$%*
-                                             =%$@@@@@$%=
-                                              *%@@@@@%*
-                                              =%@@@@@%=
-                                              *%@@@@@%*
-                                             =%$$@@@$$%=
-                                            *%$$$@@@$$$%*
-                                           =%$$$$@@@$$$$%=
-                                          *%$$$$$@@@$$$$$%*
-                                           =*%$$$$@$$$$%*=
-                                              =*%$$$%*=
+                                               @
+                                              $@$
+                                             $$@$$
+                                            $$$@$$$
+                                           $$$$@$$$$
+                                            $$$@$$$
+                                             $$@$$
+                    @                        $$@$$                        @
+                   $@$                       $$@$$                       $@$
+                  $$@$$                      $$@$$                      $$@$$
+                 $$$@$$$                     $$@$$                     $$$@$$$
+                $$$$@$$$$                    $$@$$                    $$$$@$$$$
+                 $$$@$$$                     $$@$$                     $$$@$$$
+                  $$@$                       $$@$$                       $@$$
+                   $@$                       $$@$$                       $@$
+                    $$                       $$@$$                       $$
+                     $$                      $$@$$                      $$
+                      $$                     $$@$$                     $$
+                       $$                   $$$@$$$                   $$
+                        $$$               $$$$@@@$$$$               $$$
+                         $$$$           $$$$$@@@@@$$$$$           $$$$
+                          $$$$$$$   $$$$$$$$$@@@@@$$$$$$$$$   $$$$$$$
+                           $$$$$$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$$$$$$
+                             $$$$$$$$$$$$$$$$$@@@$$$$$$$$$$$$$$$$$
+                               $$$$$$$$$$$$$$@@@@@$$$$$$$$$$$$$$
+                                  $$$$$$$$$$$@@@$$$$$$$$$$
+                                      $$$$$$@@@@@$$$$$$
+                                          $$@@@@@$$
+                                          $$$@@@$$$
+                                          $$$@@@$$$
+                                          $$$@@@$$$
+                                           $$@@@$$
+                                           $$@@@$$
+                                           $$@@@$$
+                                            $@@@$
+                                            $@@@$
+                                             $@$
+                                             $@$
+                                              @
+                                              @
 """.strip('\n')
 
 
@@ -70,27 +67,21 @@ def parse_art():
     """Parse the ASCII art into a 2D grid."""
     lines = TRIDENT_ART.split('\n')
     grid = []
-    for i, line in enumerate(lines):
-        # Pad or trim to exactly WIDTH
+    for line in lines:
         if len(line) < WIDTH:
             line = line + ' ' * (WIDTH - len(line))
         elif len(line) > WIDTH:
             line = line[:WIDTH]
-        row = []
-        for ch in line:
-            row.append(ch)
-        grid.append(row)
+        grid.append(list(line))
 
-    # Ensure exactly HEIGHT rows
     while len(grid) < HEIGHT:
         grid.append([' '] * WIDTH)
     grid = grid[:HEIGHT]
-
     return grid
 
 
 def add_aura(grid):
-    """Add a faint glow (·) around trident edges."""
+    """Add a faint glow around trident edges."""
     marks = set()
     for row in range(HEIGHT):
         for col in range(WIDTH):
@@ -121,61 +112,51 @@ def is_edge(grid, row, col):
 
 
 def path_position(row, col, grid):
-    """Map a cell to its position along the trident's path (0.0=bottom, 1.0=tips).
-
-    The energy wave follows this path value.
-    """
+    """Map a cell to its position along the trident's path (0.0=bottom, 1.0=tips)."""
     cx = WIDTH // 2
 
-    # Bottom pommel (rows 37-40): very start of path
-    if row >= 37:
-        return (40 - row) / 40.0  # 0.0 to ~0.075
+    # Bottom shaft point (rows 38-40)
+    if row >= 38:
+        return (40 - row) / 45.0
 
-    # Shaft (rows 21-36)
-    if row >= 21:
-        return 0.075 + (36 - row) / 40.0  # ~0.075 to ~0.45
+    # Shaft (rows 27-37)
+    if row >= 27:
+        return 0.04 + (37 - row) / 35.0
 
-    # Crossbar region (rows 15-20): transition zone
-    if row >= 15:
-        return 0.45 + (20 - row) / 30.0  # ~0.45 to ~0.62
+    # Crossguard / convergence (rows 19-26)
+    if row >= 19:
+        return 0.35 + (26 - row) / 25.0
 
-    # Prongs (rows 0-14): fan out toward tips
-    # Add horizontal offset to create the splitting effect
-    if row < 15:
-        base = 0.62 + (14 - row) / 25.0  # ~0.62 to ~1.18
-        # Horizontal offset adds slight delay to outer prongs
+    # Prongs (rows 0-18)
+    if row < 19:
+        base = 0.63 + (18 - row) / 30.0
         dist_from_center = abs(col - cx)
-        horiz_delay = dist_from_center / 300.0
+        horiz_delay = dist_from_center / 250.0
         return base - horiz_delay
 
     return 0.5
 
 
 def wave_intensity(row, col, frame, grid):
-    """Calculate how much blue energy is at this position for this frame.
-
-    Returns 0.0-1.0.
-    """
+    """Calculate blue energy intensity at this position for this frame."""
     ch = grid[row][col]
     if ch == ' ':
         return 0.0
 
     pos = path_position(row, col, grid)
 
-    # Two waves traveling up simultaneously, offset by half a cycle
-    cycle_length = 90  # frames per full wave cycle
-    wave_width = 0.15
+    cycle_length = 80
+    wave_width = 0.16
 
     total = 0.0
     for wave_offset in [0.0, 0.5]:
         wave_center = ((frame / cycle_length) + wave_offset) % 1.0
-
         dist = abs(pos - wave_center)
         dist = min(dist, abs(pos - wave_center + 1.0), abs(pos - wave_center - 1.0))
 
         if dist < wave_width:
             intensity = 1.0 - (dist / wave_width)
-            intensity = intensity ** 0.6  # sharpen
+            intensity = intensity ** 0.6
             total = max(total, intensity)
 
     return min(1.0, total)
@@ -192,17 +173,13 @@ def render_frame(grid, edge_map, frame):
         for col in range(WIDTH):
             ch = grid[row][col]
             wi = wave_intensity(row, col, frame, grid)
-
-            # Blue conditions:
-            # 1. Wave is passing through (wi > 0.4 for body, > 0.2 for edges/aura)
-            # 2. Edge cells always have a faint blue
             is_e = edge_map[row][col]
 
             should_blue = False
             if ch == '·':
                 should_blue = wi > 0.25
             elif is_e:
-                should_blue = True  # edges always blue
+                should_blue = True
             elif ch != ' ':
                 should_blue = wi > 0.4
 
@@ -240,7 +217,6 @@ def main():
     frames_dir = os.path.join(os.path.dirname(__file__), 'trident_frames')
     os.makedirs(frames_dir, exist_ok=True)
 
-    # Remove existing frames
     for f in os.listdir(frames_dir):
         if f.endswith('.txt'):
             os.remove(os.path.join(frames_dir, f))
@@ -249,7 +225,6 @@ def main():
     grid = parse_art()
     add_aura(grid)
 
-    # Pre-compute edge map
     edge_map = [[False] * WIDTH for _ in range(HEIGHT)]
     for r in range(HEIGHT):
         for c in range(WIDTH):

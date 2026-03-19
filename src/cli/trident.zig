@@ -200,8 +200,8 @@ pub fn run(gpa: Allocator) !u8 {
     var anim: TridentAnim = undefined;
     anim.frame = 0;
     anim.framerate = 1000 / 30;
-    anim.body_style = .{};
-    anim.outline_style = .{ .fg = .{ .index = 4 } };
+    anim.body_style = .{ .fg = .{ .rgb = [_]u8{ 0x1a, 0x8a, 0x7a } } };
+    anim.outline_style = .{ .fg = .{ .rgb = [_]u8{ 0x4d, 0xd9, 0xc0 } } };
     @memset(&anim.buffer, .{});
 
     try app.run(anim.widget(), .{});
