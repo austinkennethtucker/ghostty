@@ -125,7 +125,7 @@ private struct TerminalSplitLeaf: View {
                     tabBar
                 }
 
-                Ghostty.InspectableSurface(
+                Ghostty.BrowsableSurface(
                     surfaceView: surfaceView,
                     isSplit: isSplit)
 

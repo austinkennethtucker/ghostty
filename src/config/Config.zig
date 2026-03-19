@@ -3861,6 +3861,21 @@ term: []const u8 = "xterm-ghostty",
 /// This only works on macOS since only macOS has an auto-update feature.
 @"auto-update-channel": ?build_config.ReleaseChannel = null,
 
+/// HTTP(S) proxy URL for browser panes (e.g., "http://127.0.0.1:8080").
+/// Routes browser traffic through an intercept proxy like Burp Suite or
+/// mitmproxy. Only effective when the browser pane feature is enabled.
+@"browser-proxy": ?[:0]const u8 = null,
+
+/// Path to a PEM-encoded CA certificate for the browser intercept proxy.
+/// The browser pane trusts this CA for TLS connections without adding it
+/// to the system keychain. Only effective when `browser-proxy` is also set.
+@"browser-proxy-cert": ?[:0]const u8 = null,
+
+/// When `false`, disables all TLS certificate validation in browser panes.
+/// WARNING: Only use for testing against self-signed targets. This does
+/// NOT affect terminal connections — only the embedded browser.
+@"browser-tls-strict": bool = true,
+
 /// This is set by the CLI parser for deinit.
 _arena: ?ArenaAllocator = null,
 

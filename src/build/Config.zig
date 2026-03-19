@@ -34,6 +34,7 @@ sentry: bool = true,
 simd: bool = true,
 i18n: bool = true,
 wasm_shared: bool = true,
+@"enable-browser": bool = false,
 
 /// Ghostty exe properties
 exe_entrypoint: ExeEntrypoint = .ghostty,
@@ -202,6 +203,12 @@ pub fn init(b: *std.Build, appVersion: []const u8) !Config {
         .linux, .freebsd => target.result.isGnuLibC(),
         else => false,
     };
+
+    config.@"enable-browser" = b.option(
+        bool,
+        "enable-browser",
+        "Enable embedded browser pane support. On macOS uses system WebKit.",
+    ) orelse false;
 
     //---------------------------------------------------------------
     // Ghostty Exe Properties
@@ -480,6 +487,7 @@ pub fn addOptions(self: *const Config, step: *std.Build.Step.Options) !void {
     step.addOption(bool, "sentry", self.sentry);
     step.addOption(bool, "simd", self.simd);
     step.addOption(bool, "i18n", self.i18n);
+    step.addOption(bool, "enable-browser", self.@"enable-browser");
     step.addOption(ApprtRuntime, "app_runtime", self.app_runtime);
     step.addOption(FontBackend, "font_backend", self.font_backend);
     step.addOption(RendererBackend, "renderer", self.renderer);
@@ -563,6 +571,7 @@ pub fn fromOptions() Config {
         .wasm_target = std.meta.stringToEnum(WasmTarget, @tagName(options.wasm_target)).?,
         .wasm_shared = options.wasm_shared,
         .i18n = options.i18n,
+        .@"enable-browser" = options.@"enable-browser",
     };
 }
 
