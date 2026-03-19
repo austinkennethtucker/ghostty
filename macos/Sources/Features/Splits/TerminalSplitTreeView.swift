@@ -40,7 +40,9 @@ struct TerminalSplitTreeView: View {
         if let node = tree.zoomed ?? tree.root {
             TerminalSplitSubtreeView(
                 node: node,
-                isRoot: node == tree.root,
+                // When zoomed, treat as root so isSplit=false — the zoomed pane
+                // fills the window and shouldn't show split-related UI chrome.
+                isRoot: tree.zoomed != nil || node == tree.root,
                 action: action)
             // This is necessary because we can't rely on SwiftUI's implicit
             // structural identity to detect changes to this view. Due to

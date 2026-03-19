@@ -547,16 +547,18 @@ extension Ghostty {
             return v
         }
 
+        /// Trident teal (#4ec9b0) — default for focused-split-border-color
+        private static let tridentTeal = Color(red: 78.0 / 255, green: 201.0 / 255, blue: 176.0 / 255)
+
         var focusedSplitBorderColor: Color {
             guard let config = self.config else {
-                return Color(red: 78.0 / 255, green: 201.0 / 255, blue: 176.0 / 255)
+                return Self.tridentTeal
             }
 
             var color: ghostty_config_color_s = .init()
             let key = "focused-split-border-color"
             if !ghostty_config_get(config, &color, key, UInt(key.lengthOfBytes(using: .utf8))) {
-                // Default: Trident teal #4ec9b0
-                return Color(red: 78.0 / 255, green: 201.0 / 255, blue: 176.0 / 255)
+                return Self.tridentTeal
             }
 
             return .init(
