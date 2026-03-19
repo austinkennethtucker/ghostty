@@ -22,6 +22,12 @@ def main [
 
     # --- Build ---
     if not $skip_build {
+        # Build the Zig library first (libghostty). Without this, the Xcode
+        # build uses a stale library and config changes won't be recognized.
+        let zig_optimize = if $configuration == "Debug" { [] } else { ["-Doptimize=ReleaseFast"] }
+        print $"(ansi cyan)Building libghostty...(ansi reset)"
+        cd $repo_root
+        ^zig build -Demit-macos-app=false ...$zig_optimize
         print $"(ansi cyan)Building Trident \(($configuration))...(ansi reset)"
         nu ($macos_dir | path join "build.nu") --configuration $configuration
         print $"(ansi green)Build complete.(ansi reset)"
