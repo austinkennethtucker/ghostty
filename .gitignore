@@ -31,3 +31,5 @@ docs/superpowers/
 zig-bin/
 zig.tar.xz
 *.dmg
+staging/
+dist/

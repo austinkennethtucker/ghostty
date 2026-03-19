@@ -35,6 +35,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Build options:** run `zig build --help` or read `src/build/Config.zig` for all `-D` flags
 - **Debug builds** are the default (no `-Doptimize` flag needed)
 - **Quick unit test** (single file, no full build): `zig test src/path/to/file.zig`
+- **Linux install:** `sudo ./linux/install.sh [prefix]` (default `/usr/local`; builds ReleaseFast + installs binary, desktop files, icons, man pages, completions)
+- **Linux packages:** `./linux/package.sh` (builds .deb, .rpm, and tarball into `dist/`)
 
 ## Environment Setup
 

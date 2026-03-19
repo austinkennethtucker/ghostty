@@ -1,0 +1,56 @@
+name: Release Linux Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override (default: git describe)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-package:
+    name: Build Linux Packages
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          elif [ -f VERSION ]; then
+            echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and package
+        run: ./linux/package.sh
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: trident-deb
+          path: dist/*.deb
+
+      - name: Upload .rpm
+        uses: actions/upload-artifact@v4
+        with:
+          name: trident-rpm
+          path: dist/*.rpm
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: trident-tarball
+          path: dist/*.tar.gz

@@ -1,0 +1,26 @@
+name: trident
+arch: ${ARCH}
+version: ${VERSION}
+release: 1
+maintainer: "Austin Tucker"
+description: "Trident — GPU-accelerated terminal emulator (Ghostty fork)"
+vendor: "austinkennethtucker"
+homepage: "https://github.com/austinkennethtucker/ghostty"
+license: MIT
+
+contents:
+  - src: staging/usr/bin/ghostty
+    dst: /usr/bin/ghostty
+  - src: staging/usr/share/
+    dst: /usr/share/
+    type: tree
+
+overrides:
+  deb:
+    depends:
+      - libgtk-4-1
+      - libadwaita-1-0
+  rpm:
+    depends:
+      - gtk4
+      - libadwaita
