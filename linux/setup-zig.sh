@@ -21,7 +21,7 @@ INSTALL_DIR="/opt/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}"
 
 if [ -x "$INSTALL_DIR/zig" ]; then
     echo "Zig ${ZIG_VERSION} already installed at ${INSTALL_DIR}"
-    zig version
+    "$INSTALL_DIR/zig" version
     exit 0
 fi
 
@@ -30,16 +30,17 @@ cd /tmp
 wget -q --show-progress "$URL"
 
 echo "==> Installing to ${INSTALL_DIR}..."
-sudo tar xf "$TARBALL" -C /opt/
-sudo ln -sf "$INSTALL_DIR/zig" /usr/local/bin/zig
+tar xf "$TARBALL" -C /opt/
+ln -sf "$INSTALL_DIR/zig" /usr/local/bin/zig
 rm -f "$TARBALL"
 
-echo "==> Installed:"
-zig version
+echo "==> Installed: zig $(/usr/local/bin/zig version)"
 
-# Add to PATH in shell profile if not already there
-PROFILE="${HOME}/.bashrc"
-[ -f "${HOME}/.zshrc" ] && PROFILE="${HOME}/.zshrc"
+# Add to PATH for the invoking user (not root)
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME="$(eval echo "~${REAL_USER}")"
+PROFILE="${REAL_HOME}/.bashrc"
+[ -f "${REAL_HOME}/.zshrc" ] && PROFILE="${REAL_HOME}/.zshrc"
 if ! grep -q "/usr/local/bin" "$PROFILE" 2>/dev/null; then
     echo 'export PATH="/usr/local/bin:$PATH"' >> "$PROFILE"
     echo "==> Added /usr/local/bin to PATH in ${PROFILE}"
