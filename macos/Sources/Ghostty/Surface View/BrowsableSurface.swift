@@ -58,9 +58,13 @@ extension Ghostty {
         }
 
         private func onToggleBrowser() {
-            // Ensure model exists before showing
+            // Ensure model exists before showing, with config from ghostty
             if surfaceView.browserModel == nil {
-                surfaceView.browserModel = BrowserPaneModel()
+                surfaceView.browserModel = BrowserPaneModel(
+                    proxyURL: ghostty.config.browserProxy,
+                    proxyCertPath: ghostty.config.browserProxyCert,
+                    tlsStrict: ghostty.config.browserTlsStrict
+                )
             }
             surfaceView.browserVisible.toggle()
         }

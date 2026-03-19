@@ -46,15 +46,41 @@ struct BrowserWebView: NSViewRepresentable {
             didReceive challenge: URLAuthenticationChallenge,
             completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
         ) {
-            // TLS proxy trust is v8.1. For now, only handle tls-strict=false.
-            if !model.tlsStrict {
-                // WARNING: Disabling TLS validation — only for testing
-                if let trust = challenge.protectionSpace.serverTrust {
-                    completionHandler(.useCredential, URLCredential(trust: trust))
-                    return
-                }
+            guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+                  let serverTrust = challenge.protectionSpace.serverTrust else {
+                completionHandler(.performDefaultHandling, nil)
+                return
             }
+
+            // If TLS validation is disabled entirely
+            if !model.tlsStrict {
+                completionHandler(.useCredential, URLCredential(trust: serverTrust))
+                return
+            }
+
+            // If a proxy CA cert is configured, trust it for this connection only
+            if let certPath = model.proxyCertPath,
+               let cert = loadCertificate(fromPEM: certPath) {
+                SecTrustSetAnchorCertificates(serverTrust, [cert] as CFArray)
+                SecTrustSetAnchorCertificatesOnly(serverTrust, false)
+                completionHandler(.useCredential, URLCredential(trust: serverTrust))
+                return
+            }
+
             completionHandler(.performDefaultHandling, nil)
+        }
+
+        /// Load a PEM-encoded certificate file and return a SecCertificate.
+        /// Strips PEM headers and decodes base64 to DER format.
+        private func loadCertificate(fromPEM path: String) -> SecCertificate? {
+            guard let pemData = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+            let base64 = pemData
+                .replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
+                .replacingOccurrences(of: "-----END CERTIFICATE-----", with: "")
+                .replacingOccurrences(of: "\n", with: "")
+                .replacingOccurrences(of: "\r", with: "")
+            guard let derData = Data(base64Encoded: base64) else { return nil }
+            return SecCertificateCreateWithData(nil, derData as CFData)
         }
     }
 }
