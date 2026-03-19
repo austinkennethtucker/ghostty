@@ -11,6 +11,7 @@ const wayland = @import("wayland");
 
 const Config = @import("../../../config.zig").Config;
 const input = @import("../../../input.zig");
+const popupmod = @import("../../popup.zig");
 const ApprtWindow = @import("../class/window.zig").Window;
 
 const wl = wayland.client.wl;
@@ -402,12 +403,6 @@ pub const Window = struct {
         };
     }
 
-    // TODO: Parameterize this to read position/size from the popup profile
-    // instead of global config. For v1, this reads from global config which
-    // works correctly for the "quick" profile.
-    // TODO: Once parameterized, log warnings when a popup profile sets `x`,
-    // `y`, or `anchor` properties — these are not supported on Wayland
-    // (layer-shell only supports edge anchoring via quick-terminal-position).
     fn syncPopup(self: *Window) !void {
         const window = self.apprt_window.as(gtk.Window);
         const config = if (self.apprt_window.getConfig()) |v|
@@ -438,7 +433,18 @@ pub const Window = struct {
             },
         );
 
-        const anchored_edge: ?layer_shell.ShellEdge = switch (config.@"quick-terminal-position") {
+        // Use popup profile position if available, otherwise fall back
+        // to global quick-terminal-position config.
+        const position: popupmod.Position = self.apprt_window.popupPosition() orelse
+            switch (config.@"quick-terminal-position") {
+            .left => .left,
+            .right => .right,
+            .top => .top,
+            .bottom => .bottom,
+            .center => .center,
+        };
+
+        const anchored_edge: ?layer_shell.ShellEdge = switch (position) {
             .left => .left,
             .right => .right,
             .top => .top,
@@ -483,7 +489,7 @@ pub const Window = struct {
         } else null;
     }
 
-    /// Update the size of the quick terminal based on monitor dimensions.
+    /// Update the size of the popup/quick terminal based on monitor dimensions.
     fn enteredMonitor(
         _: *gdk.Surface,
         monitor: *gdk.Monitor,
@@ -495,8 +501,21 @@ pub const Window = struct {
         var monitor_size: gdk.Rectangle = undefined;
         monitor.getGeometry(&monitor_size);
 
+        // Use popup profile position if available, otherwise fall back
+        // to global quick-terminal-position config.
+        const qt_position: Config.QuickTerminalPosition = if (apprt_window.popupPosition()) |pos|
+            switch (pos) {
+                .left => .left,
+                .right => .right,
+                .top => .top,
+                .bottom => .bottom,
+                .center => .center,
+            }
+        else
+            config.@"quick-terminal-position";
+
         const dims = config.@"quick-terminal-size".calculate(
-            config.@"quick-terminal-position",
+            qt_position,
             .{
                 .width = @intCast(monitor_size.f_width),
                 .height = @intCast(monitor_size.f_height),

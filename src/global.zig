@@ -126,8 +126,8 @@ pub const GlobalState = struct {
         };
 
         // Output some debug information right away
-        std.log.info("ghostty version={s}", .{build_config.version_string});
-        std.log.info("ghostty build optimize={s}", .{build_config.mode_string});
+        std.log.info("trident version={s}", .{build_config.version_string});
+        std.log.info("trident build optimize={s}", .{build_config.mode_string});
         std.log.info("runtime={}", .{build_config.app_runtime});
         std.log.info("font_backend={}", .{build_config.font_backend});
         if (comptime build_config.font_backend.hasHarfbuzz()) {

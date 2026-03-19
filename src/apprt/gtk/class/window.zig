@@ -11,6 +11,7 @@ const gtk = @import("gtk");
 const i18n = @import("../../../os/main.zig").i18n;
 const apprt = @import("../../../apprt.zig");
 const configpkg = @import("../../../config.zig");
+const popupmod = @import("../../popup.zig");
 const TitlebarStyle = configpkg.Config.GtkTitlebarStyle;
 const input = @import("../../../input.zig");
 const CoreSurface = @import("../../../Surface.zig");
@@ -242,6 +243,11 @@ pub const Window = extern struct {
         /// The popup profile name this window is associated with,
         /// or null if this is not a popup window.
         popup_profile_name: ?[:0]const u8 = null,
+
+        /// The popup position for this window, or null if not a popup.
+        /// Stored here so the winproto (wayland/x11) can read it without
+        /// needing access to the PopupManager.
+        popup_position: ?popupmod.Position = null,
 
         /// Whether this window is a quick terminal. If it is then it
         /// behaves slightly differently under certain scenarios.
@@ -907,6 +913,16 @@ pub const Window = extern struct {
     /// Set the popup profile name for this window.
     pub fn setPopupProfileName(self: *Self, name: ?[:0]const u8) void {
         self.private().popup_profile_name = name;
+    }
+
+    /// Get the popup position for this window, or null if not a popup.
+    pub fn popupPosition(self: *Self) ?popupmod.Position {
+        return self.private().popup_position;
+    }
+
+    /// Set the popup position for this window.
+    pub fn setPopupPosition(self: *Self, pos: ?popupmod.Position) void {
+        self.private().popup_position = pos;
     }
 
     /// Whether this terminal is a quick terminal or not.
@@ -1843,9 +1859,9 @@ pub const Window = extern struct {
         _: ?*glib.Variant,
         self: *Self,
     ) callconv(.c) void {
-        const name = "Ghostty";
+        const name = "Trident";
         const icon = "com.mitchellh.ghostty";
-        const website = "https://ghostty.org";
+        const website = "https://github.com/austinkennethtucker/Trident";
 
         if (adw_version.supportsDialogs()) {
             adw.showAboutDialog(
@@ -1853,13 +1869,13 @@ pub const Window = extern struct {
                 "application-name",
                 name,
                 "developer-name",
-                i18n._("Ghostty Developers"),
+                i18n._("Trident Contributors"),
                 "application-icon",
                 icon,
                 "version",
                 build_config.version_string.ptr,
                 "issue-url",
-                "https://github.com/ghostty-org/ghostty/issues",
+                "https://github.com/austinkennethtucker/Trident/issues",
                 "website",
                 website,
                 @as(?*anyopaque, null),
@@ -1872,7 +1888,7 @@ pub const Window = extern struct {
                 "logo-icon-name",
                 icon,
                 "title",
-                i18n._("About Ghostty"),
+                i18n._("About Trident"),
                 "version",
                 build_config.version_string.ptr,
                 "website",

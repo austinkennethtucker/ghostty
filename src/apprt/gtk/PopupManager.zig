@@ -288,8 +288,10 @@ pub const PopupManager = struct {
             .@"is-popup" = true,
         });
 
-        // Store the profile name on the window so surfaces can read it
+        // Store the profile name and position on the window so surfaces
+        // and winproto modules can read them without PopupManager access.
         win.setPopupProfileName(name_z);
+        win.setPopupPosition(profile.position);
 
         // Track the window with a weak reference
         var weak_ref: WeakRef(Window) = .empty;

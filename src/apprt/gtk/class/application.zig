@@ -1980,7 +1980,7 @@ const Action = struct {
 
         // Set a default title if we don't already have one
         const t = switch (n.title.len) {
-            0 => "Ghostty",
+            0 => "Trident",
             else => n.title,
         };
 

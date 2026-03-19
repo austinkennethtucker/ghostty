@@ -25,12 +25,12 @@ pub const Options = struct {
 ///
 /// IMPORTANT: This command will not reload the configuration after
 /// editing. You will need to manually reload the configuration using the
-/// application menu, configured keybind, or by restarting Ghostty. We
-/// plan to auto-reload in the future, but Ghostty isn't capable of
+/// application menu, configured keybind, or by restarting Trident. We
+/// plan to auto-reload in the future, but Trident isn't capable of
 /// this yet.
 ///
 /// The filepath opened is the default user-specific configuration
-/// file, which is typically located at `$XDG_CONFIG_HOME/ghostty/config.ghostty`.
+/// file, which is typically located at `$XDG_CONFIG_HOME/trident/config.trident`.
 /// On macOS, this may also be located at
 /// `~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`.
 /// On macOS, whichever path exists and is non-empty will be prioritized,

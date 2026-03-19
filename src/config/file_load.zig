@@ -11,13 +11,31 @@ const log = std.log.scoped(.config);
 pub fn defaultXdgPath(alloc: Allocator) ![]const u8 {
     return try internal_os.xdg.config(
         alloc,
+        .{ .subdir = "trident/config.trident" },
+    );
+}
+
+/// Legacy path for the XDG home configuration file (pre-rebrand).
+/// Returned value must be freed by the caller.
+pub fn legacyDefaultXdgPath(alloc: Allocator) ![]const u8 {
+    return try internal_os.xdg.config(
+        alloc,
+        .{ .subdir = "trident/config" },
+    );
+}
+
+/// Upstream Ghostty config path (for migration from upstream).
+/// Returned value must be freed by the caller.
+fn upstreamXdgPath(alloc: Allocator) ![]const u8 {
+    return try internal_os.xdg.config(
+        alloc,
         .{ .subdir = "ghostty/config.ghostty" },
     );
 }
 
-/// Ghostty <1.3.0 default path for the XDG home configuration file.
+/// Upstream Ghostty legacy config path (for migration from upstream).
 /// Returned value must be freed by the caller.
-pub fn legacyDefaultXdgPath(alloc: Allocator) ![]const u8 {
+fn upstreamLegacyXdgPath(alloc: Allocator) ![]const u8 {
     return try internal_os.xdg.config(
         alloc,
         .{ .subdir = "ghostty/config" },
@@ -25,16 +43,18 @@ pub fn legacyDefaultXdgPath(alloc: Allocator) ![]const u8 {
 }
 
 /// Preferred default path for the XDG home configuration file.
+/// Checks trident paths first, then falls back to upstream ghostty paths
+/// for seamless migration.
 /// Returned value must be freed by the caller.
 pub fn preferredXdgPath(alloc: Allocator) ![]const u8 {
-    // If the XDG path exists, use that.
+    // If the Trident XDG path exists, use that.
     const xdg_path = try defaultXdgPath(alloc);
     if (open(xdg_path)) |f| {
         f.close();
         return xdg_path;
     } else |_| {}
 
-    // Try the legacy path
+    // Try the Trident legacy path
     errdefer alloc.free(xdg_path);
     const legacy_xdg_path = try legacyDefaultXdgPath(alloc);
     if (open(legacy_xdg_path)) |f| {
@@ -42,10 +62,28 @@ pub fn preferredXdgPath(alloc: Allocator) ![]const u8 {
         alloc.free(xdg_path);
         return legacy_xdg_path;
     } else |_| {}
-
-    // Legacy path and XDG path both don't exist. Return the
-    // new one.
     alloc.free(legacy_xdg_path);
+
+    // Fall back to upstream Ghostty config paths for migration.
+    const upstream_path = try upstreamXdgPath(alloc);
+    if (open(upstream_path)) |f| {
+        f.close();
+        log.info("using upstream ghostty config at {s}; consider moving to trident/", .{upstream_path});
+        alloc.free(xdg_path);
+        return upstream_path;
+    } else |_| {}
+    alloc.free(upstream_path);
+
+    const upstream_legacy = try upstreamLegacyXdgPath(alloc);
+    if (open(upstream_legacy)) |f| {
+        f.close();
+        log.info("using upstream ghostty config at {s}; consider moving to trident/", .{upstream_legacy});
+        alloc.free(xdg_path);
+        return upstream_legacy;
+    } else |_| {}
+    alloc.free(upstream_legacy);
+
+    // Nothing exists. Return the new Trident path.
     return xdg_path;
 }
 
