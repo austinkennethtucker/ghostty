@@ -3490,7 +3490,7 @@ popup: RepeatablePopup = .{},
 /// The absolute path to the custom icon file.
 /// Supported formats include PNG, JPEG, and ICNS.
 ///
-/// Defaults to `~/.config/ghostty/Trident.icns`
+/// Defaults to `~/.config/ghostty/Ghostty.icns`
 @"macos-custom-icon": ?[:0]const u8 = null,
 
 /// The material to use for the frame of the macOS app icon.

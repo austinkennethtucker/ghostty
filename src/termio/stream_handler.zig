@@ -992,7 +992,7 @@ pub const StreamHandler = struct {
             &buf,
             "\x1BP>|{s} {s}\x1B\\",
             .{
-                "trident",
+                "ghostty",
                 build_config.version_string,
             },
         );
