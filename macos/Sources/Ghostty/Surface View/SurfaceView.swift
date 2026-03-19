@@ -1126,24 +1126,24 @@ extension Ghostty {
             Path { path in
                 switch direction {
                 case .down:
-                    path.move(to: CGPoint(x: -arrowSize, y: -arrowSize / 2))
-                    path.addLine(to: CGPoint(x: 0, y: arrowSize / 2))
-                    path.addLine(to: CGPoint(x: arrowSize, y: -arrowSize / 2))
+                    path.move(to: CGPoint(x: 0, y: 0))
+                    path.addLine(to: CGPoint(x: arrowSize, y: arrowSize))
+                    path.addLine(to: CGPoint(x: arrowSize * 2, y: 0))
                     path.closeSubpath()
                 case .up:
-                    path.move(to: CGPoint(x: -arrowSize, y: arrowSize / 2))
-                    path.addLine(to: CGPoint(x: 0, y: -arrowSize / 2))
-                    path.addLine(to: CGPoint(x: arrowSize, y: arrowSize / 2))
+                    path.move(to: CGPoint(x: 0, y: arrowSize))
+                    path.addLine(to: CGPoint(x: arrowSize, y: 0))
+                    path.addLine(to: CGPoint(x: arrowSize * 2, y: arrowSize))
                     path.closeSubpath()
                 case .right:
-                    path.move(to: CGPoint(x: -arrowSize / 2, y: -arrowSize))
-                    path.addLine(to: CGPoint(x: arrowSize / 2, y: 0))
-                    path.addLine(to: CGPoint(x: -arrowSize / 2, y: arrowSize))
+                    path.move(to: CGPoint(x: 0, y: 0))
+                    path.addLine(to: CGPoint(x: arrowSize, y: arrowSize))
+                    path.addLine(to: CGPoint(x: 0, y: arrowSize * 2))
                     path.closeSubpath()
                 case .left:
-                    path.move(to: CGPoint(x: arrowSize / 2, y: -arrowSize))
-                    path.addLine(to: CGPoint(x: -arrowSize / 2, y: 0))
-                    path.addLine(to: CGPoint(x: arrowSize / 2, y: arrowSize))
+                    path.move(to: CGPoint(x: arrowSize, y: 0))
+                    path.addLine(to: CGPoint(x: 0, y: arrowSize))
+                    path.addLine(to: CGPoint(x: arrowSize, y: arrowSize * 2))
                     path.closeSubpath()
                 }
             }

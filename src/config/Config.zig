@@ -1090,6 +1090,9 @@ palette: Palette = .{},
 ///
 /// This is only shown when there are multiple panes visible. Single-pane
 /// layouts and zoomed panes do not show the border.
+///
+/// Currently only rendered on macOS. Other runtimes may accept this setting
+/// but have no visual effect yet.
 @"focused-split-border": bool = true,
 
 /// The color of the focused split border. If not set, defaults to Trident teal
