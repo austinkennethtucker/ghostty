@@ -1349,7 +1349,7 @@ pub const SplitTree = extern struct {
         return .initNew(container.as(gtk.Widget));
     }
 
-    fn getPaneTabBarPosition(self: *Self) configpkg.PaneTabBarPosition {
+    fn getPaneTabBarPosition(self: *Self) configpkg.Config.PaneTabBarPosition {
         _ = self;
         const app = Application.default();
         const config_obj = app.getConfig();
